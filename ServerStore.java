@@ -4,23 +4,12 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.util.concurrent.Executors;
 
 /**
  * ServerStore
  */
 public class ServerStore {
-
-    static class ServerStoreHandler implements HttpHandler {
-
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            String response = "Hello, this is a simple HTTP server response!";
-            exchange.sendResponseHeaders(200, response.length());
-            OutputStream os = exchange.getResponseBody();
-            os.write(response.getBytes());
-            os.close();
-        }
-    }
 
     private int port;
 
@@ -37,17 +26,29 @@ public class ServerStore {
 
             server.createContext("/", new ServerStoreHandler());
 
-            server.setExecutor(null);
+            server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
             server.start();
 
-            System.out.println(
+            IO.println(
                 "SERVER RUNNING ON: " +
                     server.getAddress().getHostString() +
                     ":" +
                     this.port
             );
         } catch (Exception e) {
-            System.err.println(e);
+            e.printStackTrace();
+        }
+    }
+
+    static class ServerStoreHandler implements HttpHandler {
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            String response = "Hello, this is a simple HTTP server response!";
+            exchange.sendResponseHeaders(200, response.length());
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(response.getBytes());
+            }
         }
     }
 }
