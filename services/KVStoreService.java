@@ -1,10 +1,12 @@
+package services;
+
 import java.util.HashMap;
 
-public class KVStore {
+public class KVStoreService {
 
     private HashMap<String, String> kv;
 
-    public KVStore() {
+    public KVStoreService() {
         this.kv = new HashMap<>();
     }
 
