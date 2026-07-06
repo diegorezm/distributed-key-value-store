@@ -3,12 +3,19 @@ package server;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.util.concurrent.Executors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class ServerStore {
+public class StoreNodeServer {
+
+    private static final Logger logger = LoggerFactory.getLogger(
+        StoreNodeServer.class
+    );
 
     private final int port;
+    private final String id = "askdjasdl";
 
-    public ServerStore(int port) {
+    public StoreNodeServer(int port) {
         this.port = port;
     }
 
@@ -19,15 +26,17 @@ public class ServerStore {
                 0
             );
 
-            server.createContext("/", new ServerStoreHandler());
+            server.createContext(
+                "/",
+                new StoreNodeServerHandler(this.port, this.id)
+            );
             server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
             server.start();
 
-            IO.println(
-                "SERVER RUNNING ON: " +
-                    server.getAddress().getHostString() +
-                    ":" +
-                    this.port
+            logger.info(
+                "Server running on {}:{}",
+                server.getAddress().getHostString(),
+                this.port
             );
         } catch (Exception e) {
             e.printStackTrace();
