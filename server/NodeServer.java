@@ -6,17 +6,18 @@ import java.util.concurrent.Executors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class StoreNodeServer {
+public class NodeServer {
 
     private static final Logger logger = LoggerFactory.getLogger(
-        StoreNodeServer.class
+        NodeServer.class
     );
 
     private final int port;
-    private final String id = "askdjasdl";
+    private final String id;
 
-    public StoreNodeServer(int port) {
+    public NodeServer(int port, String id) {
         this.port = port;
+        this.id = id;
     }
 
     public void run() {
@@ -28,8 +29,9 @@ public class StoreNodeServer {
 
             server.createContext(
                 "/",
-                new StoreNodeServerHandler(this.port, this.id)
+                new NodeServerHandler(this.port, this.id)
             );
+            server.createContext("/health", new HealthNodeServerHandler());
             server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
             server.start();
 

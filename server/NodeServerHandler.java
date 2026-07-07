@@ -14,17 +14,17 @@ import java.nio.charset.StandardCharsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class StoreNodeServerHandler implements HttpHandler {
+public class NodeServerHandler implements HttpHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(
-        StoreNodeServerHandler.class
+        NodeServerHandler.class
     );
     private static final Gson GSON = new Gson();
 
     private final int port;
     private final String serverId;
 
-    public StoreNodeServerHandler(int port, String serverId) {
+    public NodeServerHandler(int port, String serverId) {
         this.port = port;
         this.serverId = serverId;
     }
