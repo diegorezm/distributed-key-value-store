@@ -1,6 +1,8 @@
 package coordinator;
 
+import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -31,16 +33,19 @@ public class CoordinatorServer {
 
     /**
      * Spawns {@code count} nodes, verifies they're healthy, registers a shutdown hook,
-     * and blocks the calling thread to keep the coordinator alive.
+     * and blocks the calling thread to keep the coordinator alive. The first value of startingPort will
+     * be used as the port of the Coordinator.
      */
-    public void run(int count, int startingPort) {
+    public void run(int count, int startingPort) throws Exception {
+        int startingNodePort = startingPort + 1;
         for (int i = 1; i <= count; i++) {
             String id = "node-" + i;
-            int port = startingPort + (i - 1);
+            int port = startingNodePort + (i - 1);
             spawnNode(id, port);
         }
 
         waitUntilHealthy();
+        startHttpServer(startingPort);
 
         Runtime.getRuntime().addShutdownHook(new Thread(this::shutdownAll));
 
@@ -136,6 +141,10 @@ public class CoordinatorServer {
         }
     }
 
+    public NodeHandle getNode(String id) {
+        return nodes.get(id);
+    }
+
     public NodeHandle routeFor(String key) {
         String nodeId = nodeHashService.routeFor(key);
         return nodes.get(nodeId);
@@ -147,6 +156,17 @@ public class CoordinatorServer {
 
     public void shutdownAll() {
         nodes.keySet().forEach(this::stopNode);
+    }
+
+    private void startHttpServer(int port) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
+        server.createContext(
+            "/",
+            new RouteRedirectHandler(this, nodeHashService)
+        );
+        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+        server.start();
+        logger.info("Coordinator HTTP server listening on port {}", port);
     }
 
     private void waitUntilHealthy() {
