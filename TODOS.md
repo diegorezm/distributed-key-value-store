@@ -7,9 +7,9 @@
 - [ ] Coordinator redirects to a replica if the primary node is down (requires failure detection to know a node is down in the first place)
 
 ### Failure Detection
-- [ ] Background loop in `CoordinatorServer` that periodically calls `healthCheck` on every node
-- [ ] Mark a node "dead" after N consecutive failed checks
-- [ ] Remove dead node from `ConsistentHashRouter` ring
+- [x] Background loop in `CoordinatorServer` that periodically calls `healthCheck` on every node
+- [x] Mark a node "dead" after N consecutive failed checks
+- [x] Remove dead node from `ConsistentHashRouter` ring
 - [ ] (Optional) Auto-respawn a replacement node on the same port/id
 
 ### Persistence
