@@ -1,4 +1,4 @@
-# kv-clusters
+# KVCluster
 
 A distributed, Redis-inspired key-value store built from scratch in Java 25, used as a learning project for distributed systems concepts: consistent hashing, node coordination, replication, and (eventually) failure detection and persistence.
 
