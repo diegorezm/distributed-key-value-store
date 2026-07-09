@@ -1,197 +1,67 @@
 package coordinator;
 
 import com.sun.net.httpserver.HttpServer;
-import java.io.IOException;
+
+import coordinator.handlers.RouteRedirectHandler;
+import coordinator.services.ConsistentNodeHashService;
+
 import java.net.InetSocketAddress;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import services.ConsistentNodeHashService;
 
 public class CoordinatorServer {
+    private static final Logger logger = LoggerFactory.getLogger(CoordinatorServer.class);
 
-    private final ConsistentNodeHashService nodeHashService =
-        new ConsistentNodeHashService();
-
-    private static final Logger logger = LoggerFactory.getLogger(
-        CoordinatorServer.class
-    );
-
-    private final Map<String, NodeHandle> nodes = new ConcurrentHashMap<>();
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final NodeProcessManager processManager = new NodeProcessManager();
+    private final ConsistentNodeHashService nodeHashService = new ConsistentNodeHashService();
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
 
-    public record NodeHandle(String id, int port, Process process) {}
+    public record NodeInfo(String id, int port) {}
 
-    /**
-     * Spawns {@code count} nodes, verifies they're healthy, registers a shutdown hook,
-     * and blocks the calling thread to keep the coordinator alive. The first value of startingPort will
-     * be used as the port of the Coordinator.
-     */
-    public void run(int count, int startingPort) throws Exception {
-        int startingNodePort = startingPort + 1;
+    public void run(int count, int startingPort, int coordinatorPort) throws Exception {
+        List<NodeInfo> allNodes = new ArrayList<>();
         for (int i = 1; i <= count; i++) {
-            String id = "node-" + i;
-            int port = startingNodePort + (i - 1);
-            spawnNode(id, port);
+            allNodes.add(new NodeInfo("node-" + i, startingPort + i - 1));
+        }
+
+        for (NodeInfo self : allNodes) {
+            String peerArg = allNodes.stream()
+                .filter(n -> !n.id().equals(self.id()))
+                .map(n -> n.id() + "=http://localhost:" + n.port())
+                .collect(Collectors.joining(","));
+
+            processManager.spawnNode(self.id(), self.port(), peerArg);
+            nodeHashService.addNode(self.id());
         }
 
         waitUntilHealthy();
-        startHttpServer(startingPort);
+        startHttpServer(coordinatorPort);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(this::shutdownAll));
+        Runtime.getRuntime().addShutdownHook(new Thread(processManager::shutdownAll));
 
-        logger.info("Coordinator running with {} node(s)", count);
-        blockUntilKilled();
+        logger.info("Coordinator running with {} node(s) on port {}", count, coordinatorPort);
+        shutdownLatch.await();
     }
 
-    public NodeHandle spawnNode(String id, int port) {
-        if (nodes.containsKey(id)) {
-            throw new IllegalStateException("Node " + id + " already exists");
-        }
-
-        try {
-            ProcessBuilder pb = new ProcessBuilder(
-                "jbang",
-                "Node.java",
-                "--port=" + port,
-                "--id=" + id
-            );
-            pb.redirectErrorStream(true); // merge stderr into stdout
-
-            Process process = pb.start();
-            NodeHandle handle = new NodeHandle(id, port, process);
-            nodes.put(id, handle);
-
-            // Pipe the child process's output into our own logs, prefixed by node id.
-            // Runs on a virtual thread so it doesn't cost a platform thread per node.
-            Executors.newVirtualThreadPerTaskExecutor().submit(() -> {
-                try (var reader = process.inputReader()) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        logger.info("[{}] {}", id, line);
-                    }
-                } catch (IOException e) {
-                    logger.warn(
-                        "[{}] Output stream closed: {}",
-                        id,
-                        e.getMessage()
-                    );
-                }
-            });
-
-            logger.info(
-                "Spawned node [{}] on port {} (pid={})",
-                id,
-                port,
-                process.pid()
-            );
-            nodeHashService.addNode(id);
-            return handle;
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to spawn node " + id, e);
-        }
-    }
-
-    public void stopNode(String id) {
-        NodeHandle handle = nodes.remove(id);
-        if (handle == null) {
-            logger.warn("Tried to stop unknown node [{}]", id);
-            return;
-        }
-        handle.process().destroy();
-        nodeHashService.removeNode(id);
-        logger.info("Stopped node [{}]", id);
-    }
-
-    public boolean isAlive(String id) {
-        NodeHandle handle = nodes.get(id);
-        if (handle == null) return false;
-        return handle.process().isAlive();
-    }
-
-    public boolean healthCheck(String id) {
-        NodeHandle handle = nodes.get(id);
-        if (handle == null) return false;
-
-        try {
-            HttpRequest req = HttpRequest.newBuilder()
-                .uri(
-                    URI.create("http://localhost:" + handle.port() + "/health")
-                )
-                .timeout(Duration.ofSeconds(2))
-                .GET()
-                .build();
-            HttpResponse<String> res = httpClient.send(
-                req,
-                HttpResponse.BodyHandlers.ofString()
-            );
-            return res.statusCode() == 200;
-        } catch (Exception e) {
-            logger.warn("Health check failed for [{}]: {}", id, e.getMessage());
-            return false;
-        }
-    }
-
-    public NodeHandle getNode(String id) {
-        return nodes.get(id);
-    }
-
-    public NodeHandle routeFor(String key) {
-        String nodeId = nodeHashService.routeFor(key);
-        return nodes.get(nodeId);
-    }
-
-    public Map<String, NodeHandle> listNodes() {
-        return Map.copyOf(nodes);
-    }
-
-    public void shutdownAll() {
-        nodes.keySet().forEach(this::stopNode);
-    }
-
-    private void startHttpServer(int port) throws IOException {
-        HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
-        server.createContext(
-            "/",
-            new RouteRedirectHandler(this, nodeHashService)
-        );
-        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
-        server.start();
-        logger.info("Coordinator HTTP server listening on port {}", port);
-    }
-
-    private void waitUntilHealthy() {
-        try {
-            Thread.sleep(3000); // give processes a moment to boot before checking
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-
-        listNodes().forEach((id, handle) -> {
-            boolean healthy = healthCheck(id);
-            logger.info(
-                "{} on port {} -> healthy={}",
-                id,
-                handle.port(),
-                healthy
-            );
+    private void waitUntilHealthy() throws InterruptedException {
+        Thread.sleep(2000);
+        processManager.listNodes().forEach((id, handle) -> {
+            boolean healthy = processManager.healthCheck(id);
+            logger.info("{} on port {} -> healthy={}", id, handle.port(), healthy);
         });
     }
 
-    private void blockUntilKilled() {
-        try {
-            shutdownLatch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+    private void startHttpServer(int port) throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
+        server.createContext("/", new RouteRedirectHandler(processManager, nodeHashService));
+        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+        server.start();
+        logger.info("Coordinator HTTP server listening on port {}", port);
     }
 }

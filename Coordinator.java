@@ -5,14 +5,12 @@
 //JAVA_OPTS -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 //JAVA_OPTS -Dorg.slf4j.simpleLogger.showDateTime=true
 //JAVA_OPTS -Dorg.slf4j.simpleLogger.dateTimeFormat=yyyy-MM-dd HH:mm:ss
-//SOURCES coordinator/*.java
-//SOURCES services/*.java
-//SOURCES http/*.java
-//SOURCES dto/*.java
+//SOURCES coordinator
+//SOURCES shared
 
 import coordinator.CoordinatorServer;
 
 void main() throws Exception {
     CoordinatorServer coordinator = new CoordinatorServer();
-    coordinator.run(3, 4000);
+    coordinator.run(3, 4000, 9000);
 }

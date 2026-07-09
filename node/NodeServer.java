@@ -1,6 +1,10 @@
-package server;
+package node;
 
 import com.sun.net.httpserver.HttpServer;
+
+import node.handlers.HealthNodeServerHandler;
+import node.handlers.NodeRequestHandler;
+
 import java.net.InetSocketAddress;
 import java.util.concurrent.Executors;
 import org.slf4j.Logger;
@@ -29,7 +33,7 @@ public class NodeServer {
 
             server.createContext(
                 "/",
-                new NodeServerHandler(this.port, this.id)
+                new NodeRequestHandler(this.port, this.id)
             );
             server.createContext("/health", new HealthNodeServerHandler());
             server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());

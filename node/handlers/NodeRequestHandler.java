@@ -1,30 +1,38 @@
-package server;
+package node.handlers;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import dto.DelRequestDTO;
-import dto.GetRequestDTO;
-import dto.PutRequestDTO;
-import http.HttpResponseWriter;
+
+import node.services.KVStoreService;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class NodeServerHandler implements HttpHandler {
+import shared.dto.DelRequestDTO;
+import shared.dto.DeleteResponseDTO;
+import shared.dto.GetRequestDTO;
+import shared.dto.GetResponseDTO;
+import shared.dto.PutRequestDTO;
+import shared.dto.PutResponseDTO;
+import shared.http.HttpResponseWriter;
 
+public class NodeRequestHandler implements HttpHandler {
+
+    private final KVStoreService kv = new KVStoreService();
     private static final Logger logger = LoggerFactory.getLogger(
-        NodeServerHandler.class
+        NodeRequestHandler.class
     );
     private static final Gson GSON = new Gson();
 
     private final int port;
     private final String serverId;
 
-    public NodeServerHandler(int port, String serverId) {
+    public NodeRequestHandler(int port, String serverId) {
         this.port = port;
         this.serverId = serverId;
     }
@@ -36,9 +44,11 @@ public class NodeServerHandler implements HttpHandler {
             try (InputStream is = exchange.getRequestBody()) {
                 body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
             }
+            exchange.getResponseHeaders().set("X-Node-Id", serverId);
 
             switch (exchange.getRequestMethod()) {
                 case "POST" -> handlePut(exchange, body);
+                case "PUT" -> handlePut(exchange, body);
                 case "GET" -> handleGet(exchange, body);
                 case "DELETE" -> handleDelete(exchange, body);
                 default -> {
@@ -82,6 +92,8 @@ public class NodeServerHandler implements HttpHandler {
             HttpResponseWriter.send(exchange, 400, "Missing key or value");
             return;
         }
+
+        kv.put(putReq.key(), putReq.value());
         logger.info(
             "[{}:{}] PUT key={} value={}",
             serverId,
@@ -89,7 +101,11 @@ public class NodeServerHandler implements HttpHandler {
             putReq.key(),
             putReq.value()
         );
-        HttpResponseWriter.send(exchange, 201, "Object created!!");
+        HttpResponseWriter.send(
+            exchange,
+            201,
+            new PutResponseDTO(true, putReq.key())
+        );
     }
 
     private void handleGet(HttpExchange exchange, String body)
@@ -100,8 +116,21 @@ public class NodeServerHandler implements HttpHandler {
             HttpResponseWriter.send(exchange, 400, "Missing key");
             return;
         }
-        logger.info("[{}:{}] GET key={}", serverId, port, getReq.key());
-        HttpResponseWriter.send(exchange, 200, "This is your object");
+
+        String value = kv.get(getReq.key());
+        boolean found = value != null;
+        logger.info(
+            "[{}:{}] GET key={} found={}",
+            serverId,
+            port,
+            getReq.key(),
+            found
+        );
+        HttpResponseWriter.send(
+            exchange,
+            200,
+            new GetResponseDTO(found, getReq.key(), value)
+        );
     }
 
     private void handleDelete(HttpExchange exchange, String body)
@@ -112,7 +141,13 @@ public class NodeServerHandler implements HttpHandler {
             HttpResponseWriter.send(exchange, 400, "Missing key");
             return;
         }
+
+        kv.del(delReq.key());
         logger.info("[{}:{}] DELETE key={}", serverId, port, delReq.key());
-        HttpResponseWriter.send(exchange, 200, "Object deleted!!");
+        HttpResponseWriter.send(
+            exchange,
+            200,
+            new DeleteResponseDTO(true, delReq.key())
+        );
     }
 }

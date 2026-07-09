@@ -1,8 +1,12 @@
-package services;
+package coordinator.services;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -25,17 +29,46 @@ public class ConsistentNodeHashService {
         }
     }
 
-    public String routeFor(String key) {
+    /**
+     * Returns up to {@code replicaCount} distinct physical nodes for a key,
+     * walking clockwise starting from the key's position on the ring.
+     * The first entry is the primary owner; the rest are replicas.
+     */
+    public List<String> routeFor(String key, int replicaCount) {
         if (ring.isEmpty()) {
             throw new IllegalStateException("No nodes registered");
         }
         long keyPosition = hash(key);
+        Set<String> distinctNodes = new LinkedHashSet<>(); // preserves order, dedupes
+        // Start from the key's position, walk clockwise, wrapping around once if needed.
         SortedMap<Long, String> clockwise = ring.tailMap(keyPosition);
-        // if you find nothing, go back to the very first position.
-        long targetPosition = clockwise.isEmpty()
-            ? ring.firstKey()
-            : clockwise.firstKey();
-        return ring.get(targetPosition);
+        collect(clockwise.values(), distinctNodes, replicaCount);
+
+        if (distinctNodes.size() < replicaCount) {
+            // wrapped past the end of the ring — continue from the beginning
+            collect(
+                ring.headMap(keyPosition).values(),
+                distinctNodes,
+                replicaCount
+            );
+        }
+
+        return new ArrayList<>(distinctNodes);
+    }
+
+    public String routeFor(String key) {
+        return routeFor(key, 1).get(0);
+    }
+
+    private void collect(
+        Iterable<String> positions,
+        Set<String> acc,
+        int limit
+    ) {
+        for (String nodeId : positions) {
+            if (acc.size() >= limit) return;
+            acc.add(nodeId); // LinkedHashSet: no-op if already present, keeps first-seen order
+        }
     }
 
     private long hash(String input) {

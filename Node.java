@@ -1,4 +1,4 @@
-import server.NodeServer;
+import node.NodeServer;
 
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //DEPS com.google.code.gson:gson:2.11.0
@@ -7,10 +7,8 @@ import server.NodeServer;
 //JAVA_OPTS -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 //JAVA_OPTS -Dorg.slf4j.simpleLogger.showDateTime=true
 //JAVA_OPTS -Dorg.slf4j.simpleLogger.dateTimeFormat=yyyy-MM-dd HH:mm:ss
-//SOURCES server/*.java
-//SOURCES services/*.java
-//SOURCES http/*.java
-//SOURCES dto/*.java
+//SOURCES node
+//SOURCES shared
 
 void main(String[] args) {
     int port = 4000;

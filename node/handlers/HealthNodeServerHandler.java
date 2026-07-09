@@ -1,8 +1,10 @@
-package server;
+package node.handlers;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import http.HttpResponseWriter;
+
+import shared.http.HttpResponseWriter;
+
 import java.io.IOException;
 
 public class HealthNodeServerHandler implements HttpHandler {
