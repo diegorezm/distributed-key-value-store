@@ -13,13 +13,22 @@ import node.NodeServer;
 void main(String[] args) {
     int port = 4000;
     String id = "node-1";
+    Map<String, String> peers = new HashMap<>();
 
     for (String arg : args) {
         if (arg.startsWith("--port=")) {
             port = Integer.parseInt(arg.substring("--port=".length()));
         } else if (arg.startsWith("--id=")) {
             id = arg.substring("--id=".length());
+        } else if (arg.startsWith("--peers=")) {
+            String raw = arg.substring("--peers=".length());
+            if (!raw.isBlank()) {
+                for (String pair : raw.split(",")) {
+                    String[] kv = pair.split("=", 2);
+                    peers.put(kv[0], kv[1]);
+                }
+            }
         }
     }
-    new NodeServer(port, id).run();
+    new NodeServer(port, id, peers).run();
 }

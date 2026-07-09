@@ -9,7 +9,13 @@ import node.services.KVStoreService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,13 +34,17 @@ public class NodeRequestHandler implements HttpHandler {
         NodeRequestHandler.class
     );
     private static final Gson GSON = new Gson();
+    private static final String REPLICATION_HEADER = "X-Replication-Write";
 
     private final int port;
     private final String serverId;
+    private final Map<String, String> peers;
+    private final HttpClient httpClient = HttpClient.newHttpClient();
 
-    public NodeRequestHandler(int port, String serverId) {
+    public NodeRequestHandler(int port, String serverId, Map<String, String> peers) {
         this.port = port;
         this.serverId = serverId;
+        this.peers = peers;
     }
 
     @Override
@@ -46,11 +56,14 @@ public class NodeRequestHandler implements HttpHandler {
             }
             exchange.getResponseHeaders().set("X-Node-Id", serverId);
 
+            boolean isReplicationWrite = "true".equals(
+                exchange.getRequestHeaders().getFirst(REPLICATION_HEADER)
+            );
+
             switch (exchange.getRequestMethod()) {
-                case "POST" -> handlePut(exchange, body);
-                case "PUT" -> handlePut(exchange, body);
+                case "POST", "PUT" -> handlePut(exchange, body, isReplicationWrite);
                 case "GET" -> handleGet(exchange, body);
-                case "DELETE" -> handleDelete(exchange, body);
+                case "DELETE" -> handleDelete(exchange, body, isReplicationWrite);
                 default -> {
                     logger.warn(
                         "[{}:{}] Unsupported method: {}",
@@ -84,7 +97,7 @@ public class NodeRequestHandler implements HttpHandler {
         }
     }
 
-    private void handlePut(HttpExchange exchange, String body)
+    private void handlePut(HttpExchange exchange, String body, boolean isReplicationWrite)
         throws IOException {
         PutRequestDTO putReq = GSON.fromJson(body, PutRequestDTO.class);
         if (putReq == null || putReq.key() == null || putReq.value() == null) {
@@ -101,6 +114,11 @@ public class NodeRequestHandler implements HttpHandler {
             putReq.key(),
             putReq.value()
         );
+
+        if (!isReplicationWrite) {
+            replicateToPeers("PUT", body);
+        }
+
         HttpResponseWriter.send(
             exchange,
             201,
@@ -133,7 +151,7 @@ public class NodeRequestHandler implements HttpHandler {
         );
     }
 
-    private void handleDelete(HttpExchange exchange, String body)
+    private void handleDelete(HttpExchange exchange, String body, boolean isReplicationWrite)
         throws IOException {
         DelRequestDTO delReq = GSON.fromJson(body, DelRequestDTO.class);
         if (delReq == null || delReq.key() == null) {
@@ -144,10 +162,46 @@ public class NodeRequestHandler implements HttpHandler {
 
         kv.del(delReq.key());
         logger.info("[{}:{}] DELETE key={}", serverId, port, delReq.key());
+
+        if (!isReplicationWrite) {
+            replicateToPeers("DELETE", body);
+        }
+
         HttpResponseWriter.send(
             exchange,
             200,
             new DeleteResponseDTO(true, delReq.key())
         );
+    }
+
+    private void replicateToPeers(String method, String body) {
+        for (Map.Entry<String, String> peer : peers.entrySet()) {
+            String peerId = peer.getKey();
+            String peerAddress = peer.getValue();
+            try {
+                HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(peerAddress + "/"))
+                    .header(REPLICATION_HEADER, "true")
+                    .header("Content-Type", "application/json")
+                    .method(method, HttpRequest.BodyPublishers.ofString(body))
+                    .build();
+
+                httpClient.sendAsync(req, HttpResponse.BodyHandlers.discarding())
+                    .exceptionally(e -> {
+                        logger.warn(
+                            "[{}:{}] Failed to replicate {} to {} ({}): {}",
+                            serverId, port, method, peerId, peerAddress, e.getMessage()
+                        );
+                        return null;
+                    });
+
+                logger.debug("[{}:{}] Replicating {} to {} ({})", serverId, port, method, peerId, peerAddress);
+            } catch (Exception e) {
+                logger.warn(
+                    "[{}:{}] Failed to build replication request for {} ({}): {}",
+                    serverId, port, peerId, peerAddress, e.getMessage()
+                );
+            }
+        }
     }
 }

@@ -6,6 +6,7 @@ import node.handlers.HealthNodeServerHandler;
 import node.handlers.NodeRequestHandler;
 
 import java.net.InetSocketAddress;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,10 +19,12 @@ public class NodeServer {
 
     private final int port;
     private final String id;
+    private final Map<String, String> peers;
 
-    public NodeServer(int port, String id) {
+    public NodeServer(int port, String id, Map<String, String> peers) {
         this.port = port;
         this.id = id;
+        this.peers = peers;
     }
 
     public void run() {
@@ -33,7 +36,7 @@ public class NodeServer {
 
             server.createContext(
                 "/",
-                new NodeRequestHandler(this.port, this.id)
+                new NodeRequestHandler(this.port, this.id, this.peers)
             );
             server.createContext("/health", new HealthNodeServerHandler());
             server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
