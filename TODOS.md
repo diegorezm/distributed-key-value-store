@@ -1,9 +1,10 @@
 ### Replication
 - [x] Extend `ConsistentHashRouter` to return a replica set (`routeFor(key, replicaCount)`)
 - [x] Coordinator informs each node who its replica peers are (on spawn, or via a lookup)
-- [ ] Primary node forwards `PUT`/`DELETE` writes to its replica peers
+- [x] Primary node forwards `PUT`/`DELETE` writes to its replica peers
 - [x] Decide consistency model: wait for all replica acks vs. fire-and-forget
-- [ ] `GET` reads from primary only (for now) — revisit read-from-replica later if needed
+- [x] `GET` reads from primary only (for now) — revisit read-from-replica later if needed
+- [ ] Coordinator redirects to a replica if the primary node is down (requires failure detection to know a node is down in the first place)
 
 ### Failure Detection
 - [ ] Background loop in `CoordinatorServer` that periodically calls `healthCheck` on every node

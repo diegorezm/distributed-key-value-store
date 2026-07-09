@@ -1,5 +1,3 @@
-import node.NodeServer;
-
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //DEPS com.google.code.gson:gson:2.11.0
 //DEPS org.slf4j:slf4j-api:1.7.36
@@ -9,6 +7,8 @@ import node.NodeServer;
 //JAVA_OPTS -Dorg.slf4j.simpleLogger.dateTimeFormat=yyyy-MM-dd HH:mm:ss
 //SOURCES node
 //SOURCES shared
+
+import node.NodeServer;
 
 void main(String[] args) {
     int port = 4000;

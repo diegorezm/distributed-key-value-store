@@ -10,7 +10,24 @@
 
 import coordinator.CoordinatorServer;
 
-void main() throws Exception {
+void main(String[] args) throws Exception {
+    int nodeCount = 3;
+    int startingNodePort = 4000;
+    int coordinatorPort = 9000;
+    int replicationFactor = 2;
+
+    for (String arg : args) {
+        if (arg.startsWith("--nodes=")) {
+            nodeCount = Integer.parseInt(arg.substring("--nodes=".length()));
+        } else if (arg.startsWith("--port=")) {
+            startingNodePort = Integer.parseInt(arg.substring("--port=".length()));
+        } else if (arg.startsWith("--coordinator-port=")) {
+            coordinatorPort = Integer.parseInt(arg.substring("--coordinator-port=".length()));
+        } else if (arg.startsWith("--replication=")) {
+            replicationFactor = Integer.parseInt(arg.substring("--replication=".length()));
+        }
+    }
+
     CoordinatorServer coordinator = new CoordinatorServer();
-    coordinator.run(3, 4000, 9000);
+    coordinator.run(nodeCount, startingNodePort, coordinatorPort, replicationFactor);
 }

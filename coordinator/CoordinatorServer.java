@@ -24,28 +24,32 @@ public class CoordinatorServer {
 
     public record NodeInfo(String id, int port) {}
 
-    public void run(int count, int startingPort, int coordinatorPort) throws Exception {
+    public void run(int count, int startingPort, int coordinatorPort, int replicationFactor) throws Exception {
         List<NodeInfo> allNodes = new ArrayList<>();
         for (int i = 1; i <= count; i++) {
             allNodes.add(new NodeInfo("node-" + i, startingPort + i - 1));
         }
 
-        for (NodeInfo self : allNodes) {
-            String peerArg = allNodes.stream()
-                .filter(n -> !n.id().equals(self.id()))
-                .map(n -> n.id() + "=http://localhost:" + n.port())
-                .collect(Collectors.joining(","));
-
-            processManager.spawnNode(self.id(), self.port(), peerArg);
-            nodeHashService.addNode(self.id());
+        for (NodeInfo node : allNodes) {
+            nodeHashService.addNode(node.id());
         }
 
-        waitUntilHealthy();
+        for (NodeInfo self : allNodes) {
+              List<String> replicaIds = replicasFor(self.id(), replicationFactor);
+              String peerArg = replicaIds.stream()
+                  .map(id -> id + "=http://localhost:" + portFor(allNodes, id))
+                  .collect(Collectors.joining(","));
+
+              processManager.spawnNode(self.id(), self.port(), peerArg);
+        }
+
+          waitUntilHealthy();
         startHttpServer(coordinatorPort);
 
         Runtime.getRuntime().addShutdownHook(new Thread(processManager::shutdownAll));
 
-        logger.info("Coordinator running with {} node(s) on port {}", count, coordinatorPort);
+        logger.info("Coordinator running with {} node(s), replication factor {}, on port {}",
+              count, replicationFactor, coordinatorPort);
         shutdownLatch.await();
     }
 
@@ -63,5 +67,27 @@ public class CoordinatorServer {
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
         logger.info("Coordinator HTTP server listening on port {}", port);
+    }
+
+    /**
+     * Computes which nodes should be replicas for {@code nodeId}, using the node's own
+     * ring position as the starting point and walking clockwise to its neighbors.
+     */
+    private List<String> replicasFor(String nodeId, int replicationFactor) {
+        // Pull one extra candidate as a buffer in case nodeId happens to appear in the result;
+        // filtering it out and capping afterward guarantees exactly replicationFactor entries either way.
+        List<String> ring = nodeHashService.routeFor(nodeId, replicationFactor + 1);
+        return ring.stream()
+            .filter(id -> !id.equals(nodeId))
+            .limit(replicationFactor)
+            .toList();
+    }
+
+    private int portFor(List<NodeInfo> allNodes, String id) {
+        return allNodes.stream()
+            .filter(n -> n.id().equals(id))
+            .findFirst()
+            .map(NodeInfo::port)
+            .orElseThrow(() -> new IllegalStateException("Unknown node id: " + id));
     }
 }

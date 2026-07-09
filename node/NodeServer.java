@@ -34,6 +34,8 @@ public class NodeServer {
                 0
             );
 
+            logger.info("[{}:{}] Starting with peers: {}", id, port, peers);
+
             server.createContext(
                 "/",
                 new NodeRequestHandler(this.port, this.id, this.peers)
