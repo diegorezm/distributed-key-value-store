@@ -4,7 +4,7 @@
 - [x] Primary node forwards `PUT`/`DELETE` writes to its replica peers
 - [x] Decide consistency model: wait for all replica acks vs. fire-and-forget
 - [x] `GET` reads from primary only (for now) — revisit read-from-replica later if needed
-- [ ] Coordinator redirects to a replica if the primary node is down (requires failure detection to know a node is down in the first place)
+- [x] Coordinator redirects to a replica if the primary node is down (requires failure detection to know a node is down in the first place)
 
 ### Failure Detection
 - [x] Background loop in `CoordinatorServer` that periodically calls `healthCheck` on every node
