@@ -29,7 +29,7 @@ import shared.http.HttpResponseWriter;
 
 public class NodeRequestHandler implements HttpHandler {
 
-    private final KVStoreService kv = new KVStoreService();
+    private final KVStoreService kv;
     private static final Logger logger = LoggerFactory.getLogger(
         NodeRequestHandler.class
     );
@@ -41,10 +41,11 @@ public class NodeRequestHandler implements HttpHandler {
     private final Map<String, String> peers;
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
-    public NodeRequestHandler(int port, String serverId, Map<String, String> peers) {
+    public NodeRequestHandler(int port, String serverId, Map<String, String> peers, KVStoreService kv) {
         this.port = port;
         this.serverId = serverId;
         this.peers = peers;
+        this.kv = kv;
     }
 
     @Override

@@ -13,16 +13,16 @@
 - [ ] (Optional) Auto-respawn a replacement node on the same port/id
 
 ### Persistence
-- [ ] Simple append-only write-ahead log per node (`key,value\n` on every `PUT`/`DELETE`)
-- [ ] Replay log on node startup to rebuild in-memory `HashMap`
+- [x] Simple append-only write-ahead log per node (`key,value\n` on every `PUT`/`DELETE`)
+- [x] Replay log on node startup to rebuild in-memory `HashMap`
 - [ ] Decide on log file location per node (e.g. `./data/node-1.log`)
 
 ### Benchmarking
-- [ ] Containerize nodes + coordinator (Docker), similar to `eljobs` setup
-- [ ] Load test with `vegeta` (or similar) — throughput vs. node count
+- [ ] Containerize nodes + coordinator (Docker) 
+- [ ] Load test 
 - [ ] Measure coordinator redirect overhead vs. direct node access
 - [ ] Check key distribution/load balance across nodes under real traffic
-- [ ] Python scripts to chart results (reuse pattern from `eljobs`)
+- [ ] Python scripts to chart results
 
 ### CLI Client
 - [ ] Small CLI (`kvctl put/get/del/nodes`) talking to the coordinator
