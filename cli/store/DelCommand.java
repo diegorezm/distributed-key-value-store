@@ -3,7 +3,11 @@ package cli.store;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
-@Command(name = "del", description = "Delete a key.")
+@Command(
+    name = "del",
+    description = "Delete a key.",
+    mixinStandardHelpOptions = true
+)
 public class DelCommand implements Runnable {
 
     @Parameters(index = "0", description = "Key")

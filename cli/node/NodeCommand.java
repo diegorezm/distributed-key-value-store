@@ -8,7 +8,7 @@ import picocli.CommandLine.Model.CommandSpec;
 @Command(
     name = "node",
     description = "Manage cluster nodes.",
-    subcommandsRepeatable = false,
+    mixinStandardHelpOptions = true,
     subcommands = {
         ListCommand.class,
         GetCommand.class

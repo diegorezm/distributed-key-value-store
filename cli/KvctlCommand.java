@@ -1,6 +1,7 @@
 package cli;
 
 import cli.node.NodeCommand;
+import cli.services.CoordinatorClientService;
 import cli.store.StoreCommand;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -10,10 +11,7 @@ import picocli.CommandLine.Option;
     mixinStandardHelpOptions = true,
     version = "0.1.0",
     description = "CLI for interacting with KVCluster.",
-    subcommands = {
-        StoreCommand.class,
-        NodeCommand.class
-    }
+    subcommands = { StoreCommand.class, NodeCommand.class }
 )
 public class KvctlCommand implements Runnable {
 
@@ -37,6 +35,19 @@ public class KvctlCommand implements Runnable {
         defaultValue = "3000"
     )
     int timeoutMs;
+
+    private CoordinatorClientService client;
+
+    public CoordinatorClientService client() {
+        if (client == null) {
+            client = new CoordinatorClientService(
+                coordinatorHost,
+                coordinatorPort,
+                timeoutMs
+            );
+        }
+        return client;
+    }
 
     @Override
     public void run() {

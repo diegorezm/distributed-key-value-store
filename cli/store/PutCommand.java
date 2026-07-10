@@ -3,7 +3,11 @@ package cli.store;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
-@Command(name = "put", description = "Store a key/value pair.")
+@Command(
+    name = "put",
+    description = "Store a key/value pair.",
+    mixinStandardHelpOptions = true
+)
 public class PutCommand implements Runnable {
 
     @Parameters(index = "0", description = "Key")

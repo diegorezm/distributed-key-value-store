@@ -27,7 +27,6 @@
 ### CLI Client
 - [ ] Small CLI (`kvctl put/get/del/nodes`) talking to the coordinator
 - [ ] Handles the `307` redirect automatically (so testing isn't just raw `http` calls)
-- [ ] (Optional) explore building this in Go or Rust instead of Java
 
 ### Explicitly out of scope
 - Data migration on membership change (ring rebalancing / key transfer between nodes)
