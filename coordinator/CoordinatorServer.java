@@ -1,6 +1,8 @@
 package coordinator;
 
 import com.sun.net.httpserver.HttpServer;
+
+import coordinator.handlers.ListNodesHandler;
 import coordinator.handlers.RouteRedirectHandler;
 import coordinator.services.ConsistentNodeHashService;
 import java.net.InetSocketAddress;
@@ -26,8 +28,6 @@ public class CoordinatorServer {
         processManager,
         nodeHashService
     );
-
-    public record NodeInfo(String id, int port) {}
 
     public void run(
         int count,
@@ -57,7 +57,7 @@ public class CoordinatorServer {
         Thread.sleep(2000); // let node processes finish booting their HTTP servers
         // waitUntilHealthy();
         healthMonitor.start(2);
-        startHttpServer(coordinatorPort, replicationFactor);
+        startHttpServer(coordinatorPort, replicationFactor, allNodes);
 
         Runtime.getRuntime().addShutdownHook(
             new Thread(() -> {
@@ -75,7 +75,7 @@ public class CoordinatorServer {
         shutdownLatch.await();
     }
 
-    private void startHttpServer(int port, int replicationFactor)
+    private void startHttpServer(int port, int replicationFactor, List<NodeInfo> nodes)
         throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext(
@@ -87,6 +87,7 @@ public class CoordinatorServer {
                 replicationFactor
             )
         );
+        server.createContext("/nodes", new ListNodesHandler(nodes));
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
         logger.info("Coordinator HTTP server listening on port {}", port);
