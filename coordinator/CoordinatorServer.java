@@ -22,7 +22,10 @@ public class CoordinatorServer {
     private final ConsistentNodeHashService nodeHashService =
         new ConsistentNodeHashService();
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
-    private final NodeHealthMonitor healthMonitor = new NodeHealthMonitor(processManager, nodeHashService);
+    private final NodeHealthMonitor healthMonitor = new NodeHealthMonitor(
+        processManager,
+        nodeHashService
+    );
 
     public record NodeInfo(String id, int port) {}
 
@@ -54,12 +57,14 @@ public class CoordinatorServer {
         Thread.sleep(2000); // let node processes finish booting their HTTP servers
         // waitUntilHealthy();
         healthMonitor.start(2);
-        startHttpServer(coordinatorPort);
+        startHttpServer(coordinatorPort, replicationFactor);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                 healthMonitor.stop();
-                 processManager.shutdownAll();
-        }));
+        Runtime.getRuntime().addShutdownHook(
+            new Thread(() -> {
+                healthMonitor.stop();
+                processManager.shutdownAll();
+            })
+        );
 
         logger.info(
             "Coordinator running with {} node(s), replication factor {}, on port {}",
@@ -70,25 +75,17 @@ public class CoordinatorServer {
         shutdownLatch.await();
     }
 
-    @SuppressWarnings("unused")
-	private void waitUntilHealthy() throws InterruptedException {
-        Thread.sleep(2000);
-        processManager.listNodes().forEach((id, handle) -> {
-            boolean healthy = processManager.healthCheck(id);
-            logger.info(
-                "{} on port {} -> healthy={}",
-                id,
-                handle.port(),
-                healthy
-            );
-        });
-    }
-
-    private void startHttpServer(int port) throws Exception {
+    private void startHttpServer(int port, int replicationFactor)
+        throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext(
             "/",
-            new RouteRedirectHandler(processManager, nodeHashService)
+            new RouteRedirectHandler(
+                processManager,
+                nodeHashService,
+                healthMonitor,
+                replicationFactor
+            )
         );
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
@@ -122,5 +119,19 @@ public class CoordinatorServer {
             .orElseThrow(() ->
                 new IllegalStateException("Unknown node id: " + id)
             );
+    }
+
+    @SuppressWarnings("unused")
+    private void waitUntilHealthy() throws InterruptedException {
+        Thread.sleep(2000);
+        processManager.listNodes().forEach((id, handle) -> {
+            boolean healthy = processManager.healthCheck(id);
+            logger.info(
+                "{} on port {} -> healthy={}",
+                id,
+                handle.port(),
+                healthy
+            );
+        });
     }
 }
