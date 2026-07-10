@@ -1,0 +1,26 @@
+package cli.store;
+
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.Spec;
+
+@Command(
+    name = "store",
+    helpCommand = true,
+    description = "Manage key/value pairs.",
+    subcommands = { PutCommand.class, GetCommand.class, DelCommand.class }
+)
+public class StoreCommand implements Runnable {
+
+    @Spec
+    CommandSpec spec;
+
+    @Override
+    public void run() {
+        throw new CommandLine.ParameterException(
+            spec.commandLine(),
+            "Missing required subcommand."
+        );
+    }
+}
