@@ -2,8 +2,12 @@ package src.main.java.kvcluster.cli;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+
+import src.main.java.kvcluster.cli.domain.NodeClient;
+import src.main.java.kvcluster.cli.domain.StoreClient;
+import src.main.java.kvcluster.cli.infra.HttpNodeClient;
+import src.main.java.kvcluster.cli.infra.HttpStoreClient;
 import src.main.java.kvcluster.cli.node.NodeCommand;
-import src.main.java.kvcluster.cli.services.CoordinatorClientService;
 import src.main.java.kvcluster.cli.store.StoreCommand;
 
 @Command(
@@ -36,17 +40,12 @@ public class KvctlCommand implements Runnable {
     )
     int timeoutMs;
 
-    private CoordinatorClientService client;
+    public StoreClient storeClient() {
+        return new HttpStoreClient(new CoordinatorConfig(coordinatorHost, coordinatorPort, timeoutMs));
+    }
 
-    public CoordinatorClientService client() {
-        if (client == null) {
-            client = new CoordinatorClientService(
-                coordinatorHost,
-                coordinatorPort,
-                timeoutMs
-            );
-        }
-        return client;
+    public NodeClient nodeClient() {
+        return new HttpNodeClient(new CoordinatorConfig(coordinatorHost, coordinatorPort, timeoutMs));
     }
 
     @Override

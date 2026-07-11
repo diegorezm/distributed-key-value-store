@@ -1,11 +1,10 @@
 package src.main.java.kvcluster.cli.store;
 
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.ParentCommand;
 import src.main.java.kvcluster.cli.ClientErrors;
-import src.main.java.kvcluster.cli.services.CoordinatorClientService;
+import src.main.java.kvcluster.cli.IO;
 
 @Command(
     name = "del",
@@ -22,12 +21,7 @@ public class DelCommand implements Runnable {
 
     @Override
     public void run() {
-        CoordinatorClientService client = parent.root.client();
-        var result = ClientErrors.handle(() -> client.delete(key));
-        System.out.println(
-            Ansi.AUTO.string(
-                "@|green ✓|@ deleted @|bold " + result.key() + "|@"
-            )
-        );
+        var result = ClientErrors.handle(() -> parent.client().delete(key));
+        IO.ansi("@|green \u2713|@ deleted @|bold " + result.key() + "|@");
     }
 }

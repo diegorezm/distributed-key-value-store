@@ -1,11 +1,10 @@
 package src.main.java.kvcluster.cli.store;
 
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.ParentCommand;
 import src.main.java.kvcluster.cli.ClientErrors;
-import src.main.java.kvcluster.cli.services.CoordinatorClientService;
+import src.main.java.kvcluster.cli.IO;
 
 @Command(
     name = "get",
@@ -22,20 +21,11 @@ public class GetCommand implements Runnable {
 
     @Override
     public void run() {
-        CoordinatorClientService client = parent.root.client();
-        var result = ClientErrors.handle(() -> client.get(key));
+        var result = ClientErrors.handle(() -> parent.client().get(key));
         if (result.found()) {
-            System.out.println(
-                Ansi.AUTO.string(
-                    "@|green " + key + "|@ = @|bold " + result.value() + "|@"
-                )
-            );
+            IO.ansi("@|green " + key + "|@ = @|bold " + result.value() + "|@");
         } else {
-            System.out.println(
-                Ansi.AUTO.string(
-                    "@|yellow (no value found for '" + key + "')|@"
-                )
-            );
+            IO.ansi("@|yellow (no value found for '" + key + "')|@");
         }
     }
 }
