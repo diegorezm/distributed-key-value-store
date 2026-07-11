@@ -9,10 +9,7 @@ import picocli.CommandLine.Option;
 @Command(name = "coordinator", mixinStandardHelpOptions = true)
 public class CoordinatorCommand implements Callable<Integer> {
 
-    @Option(
-        names = "--node-jar",
-        description = "Path to node launcher script"
-    )
+    @Option(names = "--node-jar", description = "Path to node launcher script")
     private Path nodeJarPath;
 
     @Option(names = "--nodes", defaultValue = "3")
