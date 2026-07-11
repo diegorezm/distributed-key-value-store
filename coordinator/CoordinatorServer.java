@@ -54,9 +54,8 @@ public class CoordinatorServer {
             processManager.spawnNode(self.id(), self.port(), peerArg);
         }
 
-        Thread.sleep(2000); // let node processes finish booting their HTTP servers
         // waitUntilHealthy();
-        healthMonitor.start(2);
+        healthMonitor.start(2, 5);
         startHttpServer(coordinatorPort, replicationFactor, allNodes);
 
         Runtime.getRuntime().addShutdownHook(
@@ -87,7 +86,7 @@ public class CoordinatorServer {
                 replicationFactor
             )
         );
-        server.createContext("/nodes", new ListNodesHandler(nodes));
+        server.createContext("/nodes", new ListNodesHandler(nodes, this.healthMonitor));
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
         logger.info("Coordinator HTTP server listening on port {}", port);

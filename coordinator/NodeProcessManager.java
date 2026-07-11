@@ -14,10 +14,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class NodeProcessManager {
-    private static final Logger logger = LoggerFactory.getLogger(NodeProcessManager.class);
+
+    private static final Logger logger = LoggerFactory.getLogger(
+        NodeProcessManager.class
+    );
 
     private final Map<String, NodeHandle> nodes = new ConcurrentHashMap<>();
     private final HttpClient httpClient = HttpClient.newHttpClient();
+
+    private final Map<String, SpawnParams> spawnParams =
+        new ConcurrentHashMap<>();
+
+    private record SpawnParams(int port, String peerArg) {}
 
     /**
      * Spawns a node process with the given id, port, and peer topology.
@@ -28,9 +36,12 @@ public class NodeProcessManager {
             throw new IllegalStateException("Node " + id + " already exists");
         }
 
+        spawnParams.put(id, new SpawnParams(port, peerArg));
+
         try {
             ProcessBuilder pb = new ProcessBuilder(
-                "jbang", "Node.java",
+                "jbang",
+                "Node.java",
                 "--port=" + port,
                 "--id=" + id,
                 "--peers=" + peerArg
@@ -43,24 +54,40 @@ public class NodeProcessManager {
 
             pipeOutput(id, process);
 
-            logger.info("Spawned node [{}] on port {} (pid={})", id, port, process.pid());
+            logger.info(
+                "Spawned node [{}] on port {} (pid={})",
+                id,
+                port,
+                process.pid()
+            );
             return handle;
         } catch (IOException e) {
             throw new RuntimeException("Failed to spawn node " + id, e);
         }
     }
 
-    private void pipeOutput(String id, Process process) {
-        Executors.newVirtualThreadPerTaskExecutor().submit(() -> {
-            try (var reader = process.inputReader()) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    logger.info("[{}] {}", id, line);
-                }
-            } catch (IOException e) {
-                logger.warn("[{}] Output stream closed: {}", id, e.getMessage());
-            }
-        });
+    /** Kills the existing process (if any) and spawns a fresh one with the same original params. */
+    public NodeHandle restartNode(String id) {
+        SpawnParams params = spawnParams.get(id);
+        if (params == null) {
+            throw new IllegalStateException(
+                "No spawn params recorded for node " + id
+            );
+        }
+
+        if (nodes.containsKey(id)) {
+            stopNode(id); // removes from `nodes` map too, so spawnNode below won't collide
+        }
+
+        logger.info("Restarting node [{}] on port {}", id, params.port());
+        return spawnNode(id, params.port(), params.peerArg());
+    }
+
+    /** Permanently removes a node — no restart, no further health checks. */
+    public void evict(String id) {
+        stopNode(id);
+        spawnParams.remove(id);
+        logger.warn("Node [{}] permanently evicted from the pool", id);
     }
 
     public void stopNode(String id) {
@@ -99,11 +126,16 @@ public class NodeProcessManager {
 
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + handle.port() + "/health"))
+                .uri(
+                    URI.create("http://localhost:" + handle.port() + "/health")
+                )
                 .timeout(Duration.ofSeconds(2))
                 .GET()
                 .build();
-            HttpResponse<String> res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> res = httpClient.send(
+                req,
+                HttpResponse.BodyHandlers.ofString()
+            );
             return res.statusCode() == 200;
         } catch (Exception e) {
             logger.warn("Health check failed for [{}]: {}", id, e.getMessage());
@@ -121,5 +153,22 @@ public class NodeProcessManager {
 
     public void shutdownAll() {
         nodes.keySet().forEach(this::stopNode);
+    }
+
+    private void pipeOutput(String id, Process process) {
+        Executors.newVirtualThreadPerTaskExecutor().submit(() -> {
+            try (var reader = process.inputReader()) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    logger.info("[{}] {}", id, line);
+                }
+            } catch (IOException e) {
+                logger.warn(
+                    "[{}] Output stream closed: {}",
+                    id,
+                    e.getMessage()
+                );
+            }
+        });
     }
 }
