@@ -9,7 +9,6 @@ import src.main.java.kvcluster.cli.domain.NodeClient;
 import src.main.java.kvcluster.cli.domain.StoreClient;
 import src.main.java.kvcluster.cli.infra.HttpNodeClient;
 import src.main.java.kvcluster.cli.infra.HttpStoreClient;
-import src.main.java.kvcluster.cli.node.GetCommand;
 import src.main.java.kvcluster.cli.node.ListCommand;
 import src.main.java.kvcluster.cli.node.NodeCommand;
 import src.main.java.kvcluster.cli.store.DelCommand;
@@ -55,36 +54,45 @@ public class KvctlCommand implements Runnable {
     }
 
     /**
-     * Builds a picocli IFactory that injects the right port into each command.
-     * Called from the JBang entry point when constructing the CommandLine instance.
+     * Returns a picocli IFactory that injects the right port into each command.
      *
-     * Usage:
+     * IFactory.create is a generic method (<K> K create(Class<K>)), which means
+     * Java cannot use a lambda here — the compiler cannot reconcile the unchecked
+     * cast from Object to K inside a lambda body. An anonymous class with an
+     * explicit @SuppressWarnings("unchecked") cast is the correct solution.
+     *
+     * Usage from the JBang entry point:
      *   KvctlCommand root = new KvctlCommand();
      *   new CommandLine(root, root.factory()).execute(args);
-     *
-     * Note: options are not yet parsed when factory() is called, so adapters must
-     * be constructed lazily. We do this by capturing a reference to `this` and
-     * building the config on first use.
      */
     public IFactory factory() {
-        return type -> {
-            CoordinatorConfig config = new CoordinatorConfig(
-                coordinatorHost, coordinatorPort, timeoutMs
-            );
-            StoreClient store = new HttpStoreClient(config);
-            NodeClient node  = new HttpNodeClient(config);
+        return new IFactory() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <K> K create(Class<K> type) throws Exception {
+                CoordinatorConfig config = new CoordinatorConfig(
+                    coordinatorHost, coordinatorPort, timeoutMs
+                );
+                StoreClient store = new HttpStoreClient(config);
+                NodeClient node   = new HttpNodeClient(config);
 
-            // store subcommands
-            if (type == PutCommand.class)  return new PutCommand(store);
-            if (type == GetCommand.class && type.getPackageName().contains(".store")) return new src.main.java.kvcluster.cli.store.GetCommand(store);
-            if (type == DelCommand.class)  return new DelCommand(store);
+                // store subcommands
+                if (type == PutCommand.class)
+                    return (K) new PutCommand(store);
+                if (type == src.main.java.kvcluster.cli.store.GetCommand.class)
+                    return (K) new src.main.java.kvcluster.cli.store.GetCommand(store);
+                if (type == DelCommand.class)
+                    return (K) new DelCommand(store);
 
-            // node subcommands
-            if (type == ListCommand.class) return new ListCommand(node);
-            if (type == GetCommand.class)  return new GetCommand(node);
+                // node subcommands
+                if (type == ListCommand.class)
+                    return (K) new ListCommand(node);
+                if (type == src.main.java.kvcluster.cli.node.GetCommand.class)
+                    return (K) new src.main.java.kvcluster.cli.node.GetCommand(node);
 
-            // everything else: default picocli behaviour
-            return CommandLine.defaultFactory().create(type);
+                // everything else: default picocli behaviour
+                return CommandLine.defaultFactory().create(type);
+            }
         };
     }
 }
