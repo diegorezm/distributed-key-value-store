@@ -5,6 +5,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,11 +22,17 @@ public class NodeProcessManager {
 
     private final Map<String, NodeHandle> nodes = new ConcurrentHashMap<>();
     private final HttpClient httpClient = HttpClient.newHttpClient();
+    private Path nodeJarPath;
 
     private final Map<String, SpawnParams> spawnParams =
         new ConcurrentHashMap<>();
 
     private record SpawnParams(int port, String peerArg) {}
+
+    public NodeProcessManager(Path nodeJarPath){
+        this.nodeJarPath = nodeJarPath;
+
+    }
 
     /**
      * Spawns a node process with the given id, port, and peer topology.
@@ -41,7 +48,7 @@ public class NodeProcessManager {
         try {
             ProcessBuilder pb = new ProcessBuilder(
                 "jbang",
-                "Node.java",
+                nodeJarPath.toString(),
                 "--port=" + port,
                 "--id=" + id,
                 "--peers=" + peerArg

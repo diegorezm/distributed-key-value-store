@@ -1,17 +1,15 @@
 package src.main.java.kvcluster.coordinator;
 
+import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.sun.net.httpserver.HttpServer;
-
 import src.main.java.kvcluster.coordinator.handlers.ListNodesHandler;
 import src.main.java.kvcluster.coordinator.handlers.RouteRedirectHandler;
 import src.main.java.kvcluster.coordinator.services.ConsistentNodeHashService;
@@ -22,14 +20,20 @@ public class CoordinatorServer {
         CoordinatorServer.class
     );
 
-    private final NodeProcessManager processManager = new NodeProcessManager();
+    private final NodeHealthMonitor healthMonitor;
+    private final NodeProcessManager processManager;
     private final ConsistentNodeHashService nodeHashService =
         new ConsistentNodeHashService();
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
-    private final NodeHealthMonitor healthMonitor = new NodeHealthMonitor(
-        processManager,
-        nodeHashService
-    );
+
+    public CoordinatorServer(Path nodeJarPath) {
+        this.processManager = new NodeProcessManager(nodeJarPath);
+
+        this.healthMonitor = new NodeHealthMonitor(
+            processManager,
+            nodeHashService
+        );
+    }
 
     public void run(
         int count,
@@ -76,8 +80,11 @@ public class CoordinatorServer {
         shutdownLatch.await();
     }
 
-    private void startHttpServer(int port, int replicationFactor, List<NodeInfo> nodes)
-        throws Exception {
+    private void startHttpServer(
+        int port,
+        int replicationFactor,
+        List<NodeInfo> nodes
+    ) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext(
             "/",
@@ -88,7 +95,10 @@ public class CoordinatorServer {
                 replicationFactor
             )
         );
-        server.createContext("/nodes", new ListNodesHandler(nodes, this.healthMonitor));
+        server.createContext(
+            "/nodes",
+            new ListNodesHandler(nodes, this.healthMonitor)
+        );
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
         logger.info("Coordinator HTTP server listening on port {}", port);

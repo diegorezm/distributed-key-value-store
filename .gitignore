@@ -3,3 +3,4 @@ out/
 lib/
 *.jar
 data/
+build/
