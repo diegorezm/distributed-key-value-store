@@ -15,7 +15,11 @@
 ### Persistence
 - [x] Simple append-only write-ahead log per node (`key,value\n` on every `PUT`/`DELETE`)
 - [x] Replay log on node startup to rebuild in-memory `HashMap`
-- [ ] Decide on log file location per node (e.g. `./data/node-1.log`)
+- [x] Decide on log file location per node (e.g. `./data/node-1.log`)
+
+### CLI Client
+- [x] Small CLI (`kvctl put/get/del/nodes`) talking to the coordinator
+- [x] Handles the `307` redirect automatically (so testing isn't just raw `http` calls)
 
 ### Benchmarking
 - [ ] Containerize nodes + coordinator (Docker) 
@@ -23,10 +27,6 @@
 - [ ] Measure coordinator redirect overhead vs. direct node access
 - [ ] Check key distribution/load balance across nodes under real traffic
 - [ ] Python scripts to chart results
-
-### CLI Client
-- [ ] Small CLI (`kvctl put/get/del/nodes`) talking to the coordinator
-- [ ] Handles the `307` redirect automatically (so testing isn't just raw `http` calls)
 
 ### Explicitly out of scope
 - Data migration on membership change (ring rebalancing / key transfer between nodes)
