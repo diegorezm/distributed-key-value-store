@@ -53,6 +53,8 @@ public class NodeServer {
                 server.getAddress().getHostString(),
                 this.port
             );
+            // Block execution
+            Thread.currentThread().join();
         } catch (Exception e) {
             logger.error("Failed to start node [{}] on port {}", id, port, e);
         }
