@@ -1,6 +1,5 @@
 package src.main.java.kvcluster.cli;
 
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
