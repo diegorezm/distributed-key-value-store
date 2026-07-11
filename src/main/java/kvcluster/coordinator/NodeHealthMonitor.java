@@ -9,33 +9,44 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import src.main.java.kvcluster.coordinator.services.ConsistentNodeHashService;
+import src.main.java.kvcluster.coordinator.domain.HealthChecker;
+import src.main.java.kvcluster.coordinator.domain.NodeRegistry;
+import src.main.java.kvcluster.coordinator.domain.NodeRouter;
 
+/**
+ * Polls every registered node via HealthChecker and updates NodeRouter
+ * (add/remove from the ring) when health state changes.
+ *
+ * Depends only on the three domain ports — no concrete classes.
+ * This makes it fully testable without spawning real OS processes.
+ */
 public class NodeHealthMonitor {
 
-    private static final Logger logger = LoggerFactory.getLogger(
-        NodeHealthMonitor.class
-    );
+    private static final Logger logger = LoggerFactory.getLogger(NodeHealthMonitor.class);
     private static final int MAX_RESTART_ATTEMPTS = 1;
 
+    private final NodeRegistry registry;
+    private final HealthChecker healthChecker;
+    private final NodeRouter router;
     private final NodeProcessManager processManager;
-    private final ConsistentNodeHashService nodeHashService;
     private final Map<String, Boolean> healthState = new ConcurrentHashMap<>();
     private final Map<String, Integer> restartAttempts = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler =
-        Executors.newSingleThreadScheduledExecutor(
-            Thread.ofVirtual().factory()
-        );
+        Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().factory());
 
     public NodeHealthMonitor(
-        NodeProcessManager processManager,
-        ConsistentNodeHashService nodeHashService
+        NodeRegistry registry,
+        HealthChecker healthChecker,
+        NodeRouter router,
+        NodeProcessManager processManager
     ) {
+        this.registry = registry;
+        this.healthChecker = healthChecker;
+        this.router = router;
         this.processManager = processManager;
-        this.nodeHashService = nodeHashService;
     }
 
-    /** Starts polling after {@code initialDelay} every {@code intervalSeconds}, running forever in the background. */
+    /** Starts polling after {@code initialDelay} seconds, repeating every {@code intervalSeconds}. */
     public void start(int initialDelay, int intervalSeconds) {
         scheduler.scheduleAtFixedRate(
             this::checkAllNodes,
@@ -43,10 +54,7 @@ public class NodeHealthMonitor {
             intervalSeconds,
             TimeUnit.SECONDS
         );
-        logger.info(
-            "Health monitor started, checking every {}s",
-            intervalSeconds
-        );
+        logger.info("Health monitor started, checking every {}s", intervalSeconds);
     }
 
     public void stop() {
@@ -58,8 +66,8 @@ public class NodeHealthMonitor {
     }
 
     private void checkAllNodes() {
-        processManager.listNodes().forEach((id, handle) -> {
-            boolean healthyNow = processManager.healthCheck(id);
+        registry.listNodes().forEach((id, handle) -> {
+            boolean healthyNow = healthChecker.healthCheck(id);
             Boolean healthyBefore = healthState.put(id, healthyNow);
 
             boolean isFirstCheck = healthyBefore == null;
@@ -70,16 +78,16 @@ public class NodeHealthMonitor {
                     logger.info("{} on port {} is UP", id, handle.port());
                 }
                 if (stateChanged) {
-                    nodeHashService.addNode(id);
+                    router.addNode(id);
                 }
-                restartAttempts.remove(id); // reset once healthy again
+                restartAttempts.remove(id);
                 return;
             }
 
             // node is unhealthy
             if (isFirstCheck || stateChanged) {
                 logger.warn("{} on port {} is DOWN", id, handle.port());
-                nodeHashService.removeNode(id);
+                router.removeNode(id);
             }
 
             int attempts = restartAttempts.getOrDefault(id, 0);
@@ -87,29 +95,22 @@ public class NodeHealthMonitor {
                 restartAttempts.put(id, attempts + 1);
                 logger.warn(
                     "Attempting restart of node [{}] (attempt {}/{})",
-                    id,
-                    attempts + 1,
-                    MAX_RESTART_ATTEMPTS
+                    id, attempts + 1, MAX_RESTART_ATTEMPTS
                 );
                 try {
                     processManager.restartNode(id);
-                    healthState.put(id, false); // will be re-checked next cycle; assume still down until confirmed
+                    healthState.put(id, false);
                 } catch (Exception e) {
-                    logger.error(
-                        "Failed to restart node [{}]: {}",
-                        id,
-                        e.getMessage()
-                    );
+                    logger.error("Failed to restart node [{}]: {}", id, e.getMessage());
                 }
             } else {
                 logger.error(
-                    "Node [{}] exceeded restart attempts, evicting from pool permanently",
-                    id
+                    "Node [{}] exceeded restart attempts, evicting from pool permanently", id
                 );
                 processManager.evict(id);
                 healthState.remove(id);
                 restartAttempts.remove(id);
-                nodeHashService.removeNode(id); // already removed above, but harmless if called twice
+                router.removeNode(id);
             }
         });
     }

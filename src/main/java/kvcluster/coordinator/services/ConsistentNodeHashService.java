@@ -1,87 +1,72 @@
 package src.main.java.kvcluster.coordinator.services;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.SortedMap;
+import java.util.Map;
 import java.util.TreeMap;
 
-public class ConsistentNodeHashService {
+import src.main.java.kvcluster.coordinator.domain.NodeRouter;
 
-    private final SortedMap<Long, String> ring = new TreeMap<>();
+/**
+ * Consistent-hash ring implementation.
+ * Now implements NodeRouter so dependents program to the interface.
+ */
+public class ConsistentNodeHashService implements NodeRouter {
+
     private static final int VIRTUAL_NODES = 100;
+    private final TreeMap<Integer, String> ring = new TreeMap<>();
 
+    @Override
     public void addNode(String nodeId) {
         for (int i = 0; i < VIRTUAL_NODES; i++) {
-            long position = hash(nodeId + "#" + i);
-            ring.put(position, nodeId);
+            ring.put(hash(nodeId + "-" + i), nodeId);
         }
     }
 
+    @Override
     public void removeNode(String nodeId) {
         for (int i = 0; i < VIRTUAL_NODES; i++) {
-            long position = hash(nodeId + "#" + i);
-            ring.remove(position, nodeId);
+            ring.remove(hash(nodeId + "-" + i));
         }
     }
 
     /**
-     * Returns up to {@code replicaCount} distinct physical nodes for a key,
-     * walking clockwise starting from the key's position on the ring.
-     * The first entry is the primary owner; the rest are replicas.
+     * Returns up to {@code count} distinct node IDs clockwise from the key's hash position.
      */
-    public List<String> routeFor(String key, int replicaCount) {
-        if (ring.isEmpty()) {
-            throw new IllegalStateException("No nodes registered");
-        }
-        long keyPosition = hash(key);
-        Set<String> distinctNodes = new LinkedHashSet<>(); // preserves order, dedupes
-        // Start from the key's position, walk clockwise, wrapping around once if needed.
-        SortedMap<Long, String> clockwise = ring.tailMap(keyPosition);
-        collect(clockwise.values(), distinctNodes, replicaCount);
+    @Override
+    public List<String> routeFor(String key, int count) {
+        if (ring.isEmpty()) return List.of();
 
-        if (distinctNodes.size() < replicaCount) {
-            // wrapped past the end of the ring — continue from the beginning
-            collect(
-                ring.headMap(keyPosition).values(),
-                distinctNodes,
-                replicaCount
-            );
-        }
+        List<String> result = new ArrayList<>();
+        int keyHash = hash(key);
 
-        return new ArrayList<>(distinctNodes);
-    }
+        // Start at the first entry >= keyHash, wrap around if needed
+        Map.Entry<Integer, String> entry = ring.ceilingEntry(keyHash);
+        if (entry == null) entry = ring.firstEntry();
 
-    public String routeFor(String key) {
-        return routeFor(key, 1).get(0);
-    }
-
-    private void collect(
-        Iterable<String> positions,
-        Set<String> acc,
-        int limit
-    ) {
-        for (String nodeId : positions) {
-            if (acc.size() >= limit) return;
-            acc.add(nodeId); // LinkedHashSet: no-op if already present, keeps first-seen order
-        }
-    }
-
-    private long hash(String input) {
-        try {
-            MessageDigest md5 = MessageDigest.getInstance("MD5");
-            byte[] digest = md5.digest(input.getBytes(StandardCharsets.UTF_8));
-            long h = 0;
-            for (int i = 0; i < 8; i++) {
-                h = (h << 8) | (digest[i] & 0xff);
+        // Walk the ring clockwise, collecting distinct node IDs
+        Integer startKey = entry.getKey();
+        do {
+            String nodeId = entry.getValue();
+            if (!result.contains(nodeId)) {
+                result.add(nodeId);
             }
-            return h;
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
+            if (result.size() == count) break;
+
+            Map.Entry<Integer, String> next = ring.higherEntry(entry.getKey());
+            entry = (next != null) ? next : ring.firstEntry();
+        } while (!entry.getKey().equals(startKey));
+
+        return result;
+    }
+
+    private int hash(String key) {
+        // FNV-1a 32-bit — fast, low collision, no external deps
+        int h = 0x811c9dc5;
+        for (byte b : key.getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+            h ^= (b & 0xff);
+            h *= 0x01000193;
         }
+        return h;
     }
 }

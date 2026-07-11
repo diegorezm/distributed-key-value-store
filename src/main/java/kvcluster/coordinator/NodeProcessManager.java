@@ -1,37 +1,34 @@
 package src.main.java.kvcluster.coordinator;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class NodeProcessManager {
+import src.main.java.kvcluster.coordinator.domain.NodeRegistry;
 
-    private static final Logger logger = LoggerFactory.getLogger(
-        NodeProcessManager.class
-    );
+/**
+ * Manages OS-level node processes.
+ * Implements NodeRegistry so other components can query the live node set
+ * without depending on this concrete class.
+ */
+public class NodeProcessManager implements NodeRegistry {
+
+    private static final Logger logger = LoggerFactory.getLogger(NodeProcessManager.class);
 
     private final Map<String, NodeHandle> nodes = new ConcurrentHashMap<>();
-    private final HttpClient httpClient = HttpClient.newHttpClient();
-    private Path nodeJarPath;
-
-    private final Map<String, SpawnParams> spawnParams =
-        new ConcurrentHashMap<>();
+    private final Map<String, SpawnParams> spawnParams = new ConcurrentHashMap<>();
+    private final Path nodeJarPath;
 
     private record SpawnParams(int port, String peerArg) {}
 
-    public NodeProcessManager(Path nodeJarPath){
+    public NodeProcessManager(Path nodeJarPath) {
         this.nodeJarPath = nodeJarPath;
-
     }
 
     /**
@@ -61,12 +58,7 @@ public class NodeProcessManager {
 
             pipeOutput(id, process);
 
-            logger.info(
-                "Spawned node [{}] on port {} (pid={})",
-                id,
-                port,
-                process.pid()
-            );
+            logger.info("Spawned node [{}] on port {} (pid={})", id, port, process.pid());
             return handle;
         } catch (IOException e) {
             throw new RuntimeException("Failed to spawn node " + id, e);
@@ -77,15 +69,11 @@ public class NodeProcessManager {
     public NodeHandle restartNode(String id) {
         SpawnParams params = spawnParams.get(id);
         if (params == null) {
-            throw new IllegalStateException(
-                "No spawn params recorded for node " + id
-            );
+            throw new IllegalStateException("No spawn params recorded for node " + id);
         }
-
         if (nodes.containsKey(id)) {
-            stopNode(id); // removes from `nodes` map too, so spawnNode below won't collide
+            stopNode(id);
         }
-
         logger.info("Restarting node [{}] on port {}", id, params.port());
         return spawnNode(id, params.port(), params.peerArg());
     }
@@ -103,11 +91,9 @@ public class NodeProcessManager {
             logger.warn("Tried to stop unknown node [{}]", id);
             return;
         }
-
         ProcessHandle ph = handle.process().toHandle();
         ph.descendants().forEach(ProcessHandle::destroy);
         handle.process().destroy();
-
         try {
             boolean exited = handle.process().waitFor(3, TimeUnit.SECONDS);
             if (!exited) {
@@ -118,42 +104,21 @@ public class NodeProcessManager {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-
         logger.info("Stopped node [{}]", id);
     }
 
+    @Override
     public boolean isAlive(String id) {
         NodeHandle handle = nodes.get(id);
         return handle != null && handle.process().isAlive();
     }
 
-    public boolean healthCheck(String id) {
-        NodeHandle handle = nodes.get(id);
-        if (handle == null) return false;
-
-        try {
-            HttpRequest req = HttpRequest.newBuilder()
-                .uri(
-                    URI.create("http://localhost:" + handle.port() + "/health")
-                )
-                .timeout(Duration.ofSeconds(2))
-                .GET()
-                .build();
-            HttpResponse<String> res = httpClient.send(
-                req,
-                HttpResponse.BodyHandlers.ofString()
-            );
-            return res.statusCode() == 200;
-        } catch (Exception e) {
-            logger.warn("Health check failed for [{}]: {}", id, e.getMessage());
-            return false;
-        }
-    }
-
+    @Override
     public NodeHandle getNode(String id) {
         return nodes.get(id);
     }
 
+    @Override
     public Map<String, NodeHandle> listNodes() {
         return Map.copyOf(nodes);
     }
@@ -170,11 +135,7 @@ public class NodeProcessManager {
                     logger.info("[{}] {}", id, line);
                 }
             } catch (IOException e) {
-                logger.warn(
-                    "[{}] Output stream closed: {}",
-                    id,
-                    e.getMessage()
-                );
+                logger.warn("[{}] Output stream closed: {}", id, e.getMessage());
             }
         });
     }
