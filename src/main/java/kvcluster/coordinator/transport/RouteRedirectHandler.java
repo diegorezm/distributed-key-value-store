@@ -16,7 +16,6 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import src.main.java.kvcluster.coordinator.NodeHealthMonitor;
-import src.main.java.kvcluster.coordinator.domain.HealthChecker;
 import src.main.java.kvcluster.coordinator.domain.NodeRegistry;
 import src.main.java.kvcluster.coordinator.domain.NodeRouter;
 import src.main.java.kvcluster.coordinator.domain.model.NodeHandle;
@@ -33,20 +32,17 @@ public class RouteRedirectHandler implements HttpHandler {
     private static final Gson GSON = new Gson();
 
     private final NodeRouter router;
-    private final HealthChecker healthChecker;
     private final NodeRegistry registry;
     private final NodeHealthMonitor healthMonitor;
     private final int replicationFactor;
 
     public RouteRedirectHandler(
         NodeRouter router,
-        HealthChecker healthChecker,
         NodeRegistry registry,
         NodeHealthMonitor healthMonitor,
         int replicationFactor
     ) {
         this.router = router;
-        this.healthChecker = healthChecker;
         this.registry = registry;
         this.healthMonitor = healthMonitor;
         this.replicationFactor = replicationFactor;

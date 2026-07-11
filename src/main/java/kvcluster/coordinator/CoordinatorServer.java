@@ -13,8 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import src.main.java.kvcluster.coordinator.domain.HealthChecker;
-import src.main.java.kvcluster.coordinator.domain.NodeLifecycle;
-import src.main.java.kvcluster.coordinator.domain.NodeRegistry;
 import src.main.java.kvcluster.coordinator.domain.NodeRouter;
 import src.main.java.kvcluster.coordinator.domain.model.NodeInfo;
 import src.main.java.kvcluster.coordinator.infra.ConsistentNodeHashService;
@@ -96,7 +94,6 @@ public class CoordinatorServer {
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext("/", new RouteRedirectHandler(
             router,
-            healthChecker,
             processManager,
             healthMonitor,
             replicationFactor
