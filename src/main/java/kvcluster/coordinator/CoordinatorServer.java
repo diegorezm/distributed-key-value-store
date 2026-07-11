@@ -13,14 +13,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import src.main.java.kvcluster.coordinator.domain.HealthChecker;
+import src.main.java.kvcluster.coordinator.domain.NodeLifecycle;
+import src.main.java.kvcluster.coordinator.domain.NodeRegistry;
 import src.main.java.kvcluster.coordinator.domain.NodeRouter;
-import src.main.java.kvcluster.coordinator.handlers.ListNodesHandler;
-import src.main.java.kvcluster.coordinator.handlers.RouteRedirectHandler;
-import src.main.java.kvcluster.coordinator.services.ConsistentNodeHashService;
+import src.main.java.kvcluster.coordinator.domain.model.NodeInfo;
+import src.main.java.kvcluster.coordinator.infra.ConsistentNodeHashService;
+import src.main.java.kvcluster.coordinator.infra.NodeHealthProbe;
+import src.main.java.kvcluster.coordinator.infra.NodeProcessManager;
+import src.main.java.kvcluster.coordinator.transport.ListNodesHandler;
+import src.main.java.kvcluster.coordinator.transport.RouteRedirectHandler;
 
 /**
- * Composition root — constructs all concretions and wires them together.
- * Nothing else in the coordinator package does `new` on a dependency.
+ * Composition root — the only class that instantiates infra concretions
+ * and wires them to domain ports.
+ * No other class in this module does 'new' on a dependency.
  */
 public class CoordinatorServer {
 
@@ -37,10 +43,10 @@ public class CoordinatorServer {
         this.router = new ConsistentNodeHashService();
         this.healthChecker = new NodeHealthProbe(processManager);
         this.healthMonitor = new NodeHealthMonitor(
-            processManager,
-            healthChecker,
-            router,
-            processManager
+            processManager,   // NodeRegistry
+            healthChecker,    // HealthChecker
+            router,           // NodeRouter
+            processManager    // NodeLifecycle
         );
     }
 
@@ -85,15 +91,17 @@ public class CoordinatorServer {
     private void startHttpServer(
         int port,
         int replicationFactor,
-        List<NodeInfo> nodes
+        List<NodeInfo> allNodes
     ) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
-        server.createContext("/",
-            new RouteRedirectHandler(router, healthChecker, processManager, replicationFactor)
-        );
-        server.createContext("/nodes",
-            new ListNodesHandler(nodes, healthMonitor)
-        );
+        server.createContext("/", new RouteRedirectHandler(
+            router,
+            healthChecker,
+            processManager,
+            healthMonitor,
+            replicationFactor
+        ));
+        server.createContext("/nodes", new ListNodesHandler(allNodes, healthMonitor));
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
         logger.info("Coordinator HTTP server listening on port {}", port);
@@ -113,14 +121,5 @@ public class CoordinatorServer {
             .findFirst()
             .map(NodeInfo::port)
             .orElseThrow(() -> new IllegalStateException("Unknown node id: " + id));
-    }
-
-    @SuppressWarnings("unused")
-    private void waitUntilHealthy() throws InterruptedException {
-        Thread.sleep(2000);
-        processManager.listNodes().forEach((id, handle) -> {
-            boolean healthy = healthChecker.healthCheck(id);
-            logger.info("{} on port {} -> healthy={}", id, handle.port(), healthy);
-        });
     }
 }

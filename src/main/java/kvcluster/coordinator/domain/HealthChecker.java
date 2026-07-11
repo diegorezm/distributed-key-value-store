@@ -1,9 +1,8 @@
 package src.main.java.kvcluster.coordinator.domain;
 
 /**
- * PORT — asks a node whether it is ready to serve traffic.
- * Implemented by NodeHealthProbe in production (HTTP GET /health).
- * Can be replaced with a stub in tests.
+ * PORT — asks a single node whether it is ready to serve traffic.
+ * Implementations live in infra/.
  */
 public interface HealthChecker {
     boolean healthCheck(String nodeId);

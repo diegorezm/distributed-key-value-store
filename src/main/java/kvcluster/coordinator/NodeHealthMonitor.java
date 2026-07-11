@@ -10,15 +10,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import src.main.java.kvcluster.coordinator.domain.HealthChecker;
+import src.main.java.kvcluster.coordinator.domain.NodeLifecycle;
 import src.main.java.kvcluster.coordinator.domain.NodeRegistry;
 import src.main.java.kvcluster.coordinator.domain.NodeRouter;
+import src.main.java.kvcluster.coordinator.domain.model.NodeHandle;
 
 /**
- * Polls every registered node via HealthChecker and updates NodeRouter
- * (add/remove from the ring) when health state changes.
+ * Orchestrates cluster health over time.
+ * Polls every node via HealthChecker, updates the ring via NodeRouter,
+ * and triggers restarts or evictions via NodeLifecycle.
  *
- * Depends only on the three domain ports — no concrete classes.
- * This makes it fully testable without spawning real OS processes.
+ * Depends only on domain ports — no infra classes.
+ * This makes it fully unit-testable without spawning processes or touching the network.
  */
 public class NodeHealthMonitor {
 
@@ -28,7 +31,7 @@ public class NodeHealthMonitor {
     private final NodeRegistry registry;
     private final HealthChecker healthChecker;
     private final NodeRouter router;
-    private final NodeProcessManager processManager;
+    private final NodeLifecycle lifecycle;
     private final Map<String, Boolean> healthState = new ConcurrentHashMap<>();
     private final Map<String, Integer> restartAttempts = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler =
@@ -38,15 +41,14 @@ public class NodeHealthMonitor {
         NodeRegistry registry,
         HealthChecker healthChecker,
         NodeRouter router,
-        NodeProcessManager processManager
+        NodeLifecycle lifecycle
     ) {
         this.registry = registry;
         this.healthChecker = healthChecker;
         this.router = router;
-        this.processManager = processManager;
+        this.lifecycle = lifecycle;
     }
 
-    /** Starts polling after {@code initialDelay} seconds, repeating every {@code intervalSeconds}. */
     public void start(int initialDelay, int intervalSeconds) {
         scheduler.scheduleAtFixedRate(
             this::checkAllNodes,
@@ -66,7 +68,10 @@ public class NodeHealthMonitor {
     }
 
     private void checkAllNodes() {
-        registry.listNodes().forEach((id, handle) -> {
+        for (Map.Entry<String, NodeHandle> entry : registry.listNodes().entrySet()) {
+            String id = entry.getKey();
+            NodeHandle handle = entry.getValue();
+
             boolean healthyNow = healthChecker.healthCheck(id);
             Boolean healthyBefore = healthState.put(id, healthyNow);
 
@@ -81,7 +86,7 @@ public class NodeHealthMonitor {
                     router.addNode(id);
                 }
                 restartAttempts.remove(id);
-                return;
+                continue;
             }
 
             // node is unhealthy
@@ -98,20 +103,19 @@ public class NodeHealthMonitor {
                     id, attempts + 1, MAX_RESTART_ATTEMPTS
                 );
                 try {
-                    processManager.restartNode(id);
+                    lifecycle.restartNode(id);
                     healthState.put(id, false);
                 } catch (Exception e) {
                     logger.error("Failed to restart node [{}]: {}", id, e.getMessage());
                 }
             } else {
                 logger.error(
-                    "Node [{}] exceeded restart attempts, evicting from pool permanently", id
+                    "Node [{}] exceeded restart attempts, evicting permanently", id
                 );
-                processManager.evict(id);
+                lifecycle.evict(id);
                 healthState.remove(id);
                 restartAttempts.remove(id);
-                router.removeNode(id);
             }
-        });
+        }
     }
 }
