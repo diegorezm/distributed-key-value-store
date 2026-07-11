@@ -3,9 +3,7 @@ package src.main.java.kvcluster.cli.store;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
-import picocli.CommandLine.ParentCommand;
 import picocli.CommandLine.Spec;
-import src.main.java.kvcluster.cli.KvctlCommand;
 
 @Command(
     name = "store",
@@ -17,10 +15,6 @@ public class StoreCommand implements Runnable {
 
     @Spec
     CommandSpec spec;
-
-    @ParentCommand
-    KvctlCommand root;
-
 
     @Override
     public void run() {

@@ -1,11 +1,9 @@
 package src.main.java.kvcluster.cli.node;
 
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Help.Ansi;
-import picocli.CommandLine.ParentCommand;
 import src.main.java.kvcluster.cli.ClientErrors;
-import src.main.java.kvcluster.cli.services.CoordinatorClientService;
-import src.main.java.kvcluster.shared.models.ListNodeResponse;
+import src.main.java.kvcluster.cli.IO;
+import src.main.java.kvcluster.cli.domain.NodeClient;
 import src.main.java.kvcluster.shared.models.NodeStatus;
 
 @Command(
@@ -15,25 +13,23 @@ import src.main.java.kvcluster.shared.models.NodeStatus;
 )
 public class ListCommand implements Runnable {
 
-    @ParentCommand
-    NodeCommand parent;
+    private final NodeClient client;
+
+    public ListCommand(NodeClient client) {
+        this.client = client;
+    }
 
     @Override
     public void run() {
-        CoordinatorClientService client = parent.root.client();
-
-        ListNodeResponse result = ClientErrors.handle(client::listNodes);
-
-        for (NodeStatus node : result.nodes()) {
+        var nodes = ClientErrors.handle(client::listNodes);
+        for (NodeStatus node : nodes) {
             String status = node.healthy()
-                ? Ansi.AUTO.string("@|green UP  |@")
-                : Ansi.AUTO.string("@|red DOWN|@");
-            System.out.printf(
-                "%-10s %-25s %s%n",
+                ? "@|green UP  |@"
+                : "@|red DOWN|@";
+            IO.printf("%-10s %-25s %s%n",
                 node.id(),
                 node.url(),
-                status
-            );
+                picocli.CommandLine.Help.Ansi.AUTO.string(status));
         }
     }
 }

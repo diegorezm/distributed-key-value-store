@@ -1,11 +1,10 @@
 package src.main.java.kvcluster.cli.store;
 
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.Parameters;
-import picocli.CommandLine.ParentCommand;
 import src.main.java.kvcluster.cli.ClientErrors;
-import src.main.java.kvcluster.cli.services.CoordinatorClientService;
+import src.main.java.kvcluster.cli.IO;
+import src.main.java.kvcluster.cli.domain.StoreClient;
 
 @Command(
     name = "put",
@@ -20,15 +19,15 @@ public class PutCommand implements Runnable {
     @Parameters(index = "1", description = "Value")
     String value;
 
-    @ParentCommand
-    StoreCommand parent;
+    private final StoreClient client;
+
+    public PutCommand(StoreClient client) {
+        this.client = client;
+    }
 
     @Override
     public void run() {
-        CoordinatorClientService client = parent.root.client();
         var result = ClientErrors.handle(() -> client.put(key, value));
-        System.out.println(
-            Ansi.AUTO.string("@|green ✓|@ stored @|bold " + result.key() + "|@")
-        );
+        IO.ansi("@|green ✓|@ stored @|bold " + result.key() + "|@");
     }
 }
