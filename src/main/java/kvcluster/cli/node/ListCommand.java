@@ -1,9 +1,9 @@
 package src.main.java.kvcluster.cli.node;
 
 import picocli.CommandLine.Command;
+import picocli.CommandLine.ParentCommand;
 import src.main.java.kvcluster.cli.ClientErrors;
 import src.main.java.kvcluster.cli.IO;
-import src.main.java.kvcluster.cli.domain.NodeClient;
 import src.main.java.kvcluster.shared.models.NodeStatus;
 
 @Command(
@@ -13,15 +13,12 @@ import src.main.java.kvcluster.shared.models.NodeStatus;
 )
 public class ListCommand implements Runnable {
 
-    private final NodeClient client;
-
-    public ListCommand(NodeClient client) {
-        this.client = client;
-    }
+    @ParentCommand
+    NodeCommand parent;
 
     @Override
     public void run() {
-        var nodes = ClientErrors.handle(client::listNodes);
+        var nodes = ClientErrors.handle(parent.client()::listNodes);
         for (NodeStatus node : nodes) {
             String status = node.healthy()
                 ? "@|green UP  |@"

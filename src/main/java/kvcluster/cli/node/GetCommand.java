@@ -2,9 +2,9 @@ package src.main.java.kvcluster.cli.node;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
+import picocli.CommandLine.ParentCommand;
 import src.main.java.kvcluster.cli.ClientErrors;
 import src.main.java.kvcluster.cli.IO;
-import src.main.java.kvcluster.cli.domain.NodeClient;
 import src.main.java.kvcluster.shared.models.NodeStatus;
 
 @Command(
@@ -17,15 +17,12 @@ public class GetCommand implements Runnable {
     @Parameters(index = "0", description = "Node ID")
     String nodeId;
 
-    private final NodeClient client;
-
-    public GetCommand(NodeClient client) {
-        this.client = client;
-    }
+    @ParentCommand
+    NodeCommand parent;
 
     @Override
     public void run() {
-        NodeStatus node = ClientErrors.handle(() -> client.getNode(nodeId));
+        NodeStatus node = ClientErrors.handle(() -> parent.client().getNode(nodeId));
         if (node == null) {
             IO.ansi("@|yellow No node found with id '" + nodeId + "'|@");
             return;

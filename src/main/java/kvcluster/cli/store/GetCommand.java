@@ -2,9 +2,9 @@ package src.main.java.kvcluster.cli.store;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
+import picocli.CommandLine.ParentCommand;
 import src.main.java.kvcluster.cli.ClientErrors;
 import src.main.java.kvcluster.cli.IO;
-import src.main.java.kvcluster.cli.domain.StoreClient;
 
 @Command(
     name = "get",
@@ -16,15 +16,12 @@ public class GetCommand implements Runnable {
     @Parameters(index = "0", description = "Key")
     String key;
 
-    private final StoreClient client;
-
-    public GetCommand(StoreClient client) {
-        this.client = client;
-    }
+    @ParentCommand
+    StoreCommand parent;
 
     @Override
     public void run() {
-        var result = ClientErrors.handle(() -> client.get(key));
+        var result = ClientErrors.handle(() -> parent.client().get(key));
         if (result.found()) {
             IO.ansi("@|green " + key + "|@ = @|bold " + result.value() + "|@");
         } else {
