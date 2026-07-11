@@ -8,7 +8,9 @@
 //SOURCES coordinator
 //SOURCES shared
 
-package src.main.java.kvcluster.coordinator;
+package src.main.java.kvcluster;
+
+import src.main.java.kvcluster.coordinator.CoordinatorServer;
 
 public class CoordinatorApplication {
 

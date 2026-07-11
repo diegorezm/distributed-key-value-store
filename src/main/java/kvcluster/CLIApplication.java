@@ -4,9 +4,10 @@
 //SOURCES cli
 //SOURCES shared
 
-package src.main.java.kvcluster.cli;
+package src.main.java.kvcluster;
 
 import picocli.CommandLine;
+import src.main.java.kvcluster.cli.KvctlCommand;
 
 public class CLIApplication {
     public static void main(String[] args) {

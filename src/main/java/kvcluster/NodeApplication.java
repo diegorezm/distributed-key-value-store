@@ -8,10 +8,12 @@
 //SOURCES node
 //SOURCES shared
 
-package src.main.java.kvcluster.node;
+package src.main.java.kvcluster;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import src.main.java.kvcluster.node.NodeServer;
 
 public class NodeApplication {
 
