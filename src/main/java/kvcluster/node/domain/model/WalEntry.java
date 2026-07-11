@@ -1,4 +1,4 @@
-package src.main.java.kvcluster.node.dto;
+package src.main.java.kvcluster.node.domain.model;
 
 public record WalEntry(String op, String key, String value) {
     public static WalEntry put(String key, String value) {

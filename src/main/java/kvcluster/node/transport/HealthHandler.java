@@ -1,4 +1,4 @@
-package src.main.java.kvcluster.node.handlers;
+package src.main.java.kvcluster.node.transport;
 
 import java.io.IOException;
 
@@ -7,7 +7,10 @@ import com.sun.net.httpserver.HttpHandler;
 
 import src.main.java.kvcluster.shared.http.HttpResponseWriter;
 
-public class HealthNodeServerHandler implements HttpHandler {
+/**
+ * TRANSPORT — responds 200 OK to health checks from the coordinator.
+ */
+public class HealthHandler implements HttpHandler {
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
