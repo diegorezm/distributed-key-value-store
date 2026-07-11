@@ -1,12 +1,15 @@
 # KVCluster
 
-A distributed, Redis-inspired key-value store built from scratch in Java 25, used as a learning project for distributed systems concepts: consistent hashing, node coordination, replication, and (eventually) failure detection and persistence.
+A distributed, Redis-inspired key-value store built from scratch in Java 25.
 
-Each "node" is an independent process that stores data in memory and exposes a simple HTTP API (`PUT` / `GET` / `DELETE`). A **coordinator** process spawns and tracks nodes, routes client requests to the correct node using consistent hashing, and (eventually) monitors node health.
+## Tech stack
 
-## Why this exists
-
-This is a learning project, not a production system. The goal is to build and understand the core mechanisms real distributed key-value stores (Redis Cluster, Cassandra, DynamoDB) rely on.
+- **Java 25** — virtual threads for HTTP executors and background health checks
+- **[JBang](https://www.jbang.dev/)** — dependency management and script execution, no build tool
+- **[Gson](https://github.com/google/gson)** — JSON (de)serialization
+- **[SLF4J](https://www.slf4j.org/)** — logging
+- **[picocli](https://picocli.info/)** — CLI argument parsing and colored terminal output
+- **`com.sun.net.httpserver`** — the JDK-bundled HTTP server (no external web framework)
 
 ## Architecture
 
@@ -14,105 +17,85 @@ This is a learning project, not a production system. The goal is to build and un
 flowchart LR
     Client([Client])
     Coord[Coordinator]
-    Owner[Node owner]
-    Peers[Replica nodes]
+    N1[Node 1]
+    N2[Node 2]
+    N3[Node 3]
 
-    Client -->|1 request| Coord
-    Coord -->|2 redirect| Client
-    Client -->|3 request| Owner
-    Owner -->|4 replicate| Peers
-    Owner -->|5 response| Client
+    Client -->|request| Coord
+    Coord -->|redirect| N1
+    N1 <-->|replicate| N2
+    N1 <-->|replicate| N3
 ```
 
 1. Client sends a request to the coordinator.
-2. Coordinator hashes the key and redirects the client to the node that owns it.
-3. Client sends the same request directly to that node.
-4. The node replicates the write to its peers asynchronously.
-5. The node responds to the client.
+2. Coordinator redirects it to the node that owns the key.
+3. That node replicates the write to its peers.
 
-The coordinator also spawns and health-checks every node process, separately from this request path.
+The coordinator also spawns, health-checks, restarts, and (if necessary) evicts nodes in the background.
 
-**Two process roles:**
+## Features
 
-- **Coordinator** — a single long-lived process. On startup, it spawns N node processes (each as a separate OS process via `ProcessBuilder`/JBang), builds a consistent-hashing ring over them, and runs its own small HTTP server. It does **not** sit in the hot path for every request — it only tells clients which node to talk to.
-- **Node** — an independent HTTP server + in-memory key-value store. Each node knows the full set of its peer nodes (handed to it by the coordinator at startup) and is responsible for replicating writes to them directly.
+### Consistent hashing
+Nodes and keys are hashed onto the same circular ring (`ConsistentNodeHashService`), each physical node represented by ~100 virtual positions to even out load. A key belongs to whichever node is next on the ring walking clockwise from the key's hash, so adding or removing a node only reshuffles a small slice of keys, not the whole keyspace.
 
-**Why nodes are separate OS processes (not threads in one JVM):** this is deliberate. It means a node can crash independently without taking down the whole cluster or the coordinator — closer to how a real distributed system behaves, and a better basis for testing failure detection later.
+### Replication
+Each node is told its replica peers (computed from the ring, independent of total node count) at spawn time. On a write, the primary node replicates asynchronously to its peers, tagging the forwarded request with `X-Replication-Write: true` so peers know not to forward it again, this is what keeps replication to a single hop instead of cascading.
 
-## How a request flows
+### Routing with failover
+The coordinator doesn't just route to a key's primary owner, it walks the primary + replica set in order and redirects to the first node currently marked healthy. If the primary is down, the client transparently lands on a replica instead.
 
-1. Client sends `PUT http://localhost:9000/` with `{"key": "foo", "value": "bar"}` to the **coordinator**.
-2. Coordinator peeks at the `key` field, hashes it onto its consistent-hashing ring, and figures out which node owns it.
-3. Coordinator responds with an HTTP `307 Temporary Redirect` pointing at that node's address. `307` (not `301`/`302`) is used specifically because it preserves the original HTTP method *and* request body when followed — important since `PUT`/`DELETE` carry payloads.
-4. The client (or an HTTP client with `--follow`/`-F`) re-sends the exact same request directly to that node.
-5. The node stores the value locally, then **asynchronously forwards the write to its replica peers**, tagging the forwarded request with an `X-Replication-Write: true` header so peers know *not* to forward it again (this is what prevents infinite replication loops).
-6. The node responds to the client, including an `X-Node-Id` header identifying which node actually handled the request.
+### Failure detection & self-healing
+A background health monitor polls every node on an interval. When a node stops responding:
+1. It's immediately pulled out of the hash ring so routing stops sending traffic there.
+2. The coordinator attempts to restart it once, using its original spawn parameters (port, peers).
+3. If it's still unhealthy after the restart attempt, it's permanently evicted from the pool (data migration to cover its share of the keyspace is intentionally out of scope — see below).
 
-## Consistent hashing (the routing mechanism)
+### Persistence (write-ahead log)
+Every `PUT`/`DELETE` is appended to a per-node log file (`data/<node-id>.log`) before being applied in memory. On startup, each node replays its own log to rebuild its in-memory state — so a node survives a crash or restart without losing data.
 
-Instead of naive `hash(key) % nodeCount` (which reshuffles almost every key whenever a node is added/removed), nodes and keys are hashed onto the same circular numeric space (a "ring"). A key belongs to whichever node is the next one found walking clockwise from the key's position.
-
-Each physical node is hashed multiple times under different suffixes ("virtual nodes", ~100 per node) and scattered around the ring, which evens out load distribution across a small number of real nodes.
-
-This logic lives in `ConsistentNodeHashService`, backed by a `TreeMap<Long, String>` — `tailMap()` does the "walk clockwise" for free, since the map stays sorted by ring position.
-
-## Replication
-
-Every node is given a map of its peers (`{"node-2": "http://localhost:4001", ...}`) directly by the coordinator at spawn time — no gossip protocol, no dynamic discovery, since the coordinator already knows the full topology the moment it spawns everything.
-
-When a node receives an original client write, it replicates that write to all its peers, marking the forwarded request so peers don't replicate it further (depth-1 fan-out only, no recursion). Replication is currently fire-and-forget (async, no acknowledgement wait) — an intentional eventual-consistency tradeoff for now.
+### CLI client
+A `picocli`-based CLI talks to the coordinator like any other client:
+```bash
+jbang CLI.java store put foo bar
+jbang CLI.java store get foo
+jbang CLI.java store del foo
+jbang CLI.java nodes list
+jbang CLI.java nodes get node-2
+```
+Output uses picocli's built-in ANSI markup (auto-disabled when output isn't a real terminal), and errors (timeouts, unreachable coordinator) are handled with clear messages and proper non-zero exit codes.
 
 ## Running it
 
-Requires [JBang](https://www.jbang.dev/) (dependencies are declared inline via `//DEPS` — no separate build step or vendored jars).
+Requires [JBang](https://www.jbang.dev/) (dependencies declared inline via `//DEPS` — no Maven/Gradle).
 
-**Start the coordinator** (spawns 3 nodes on ports 4000-4002, listens itself on 9000):
+**Start the cluster:**
 ```bash
-jbang Coordinator.java
+jbang Coordinator.java --nodes=5 --replication=2
 ```
 
-**Talk to the cluster** (using [httpie](https://httpie.io/)):
+**Talk to it via the CLI:**
 ```bash
-# write a key — coordinator redirects to the owning node
-http --follow PUT "http://localhost:9000/" key=foo value=bar
-
-# read it back
-http --follow GET "http://localhost:9000/" key=foo
-
-# delete it
-http --follow DELETE "http://localhost:9000/" key=foo
+jbang CLI.java store put foo bar
+jbang CLI.java store get foo
+jbang CLI.java store del foo
+jbang CLI.java nodes list
 ```
 
-Add `-v` to see the `307` redirect and `X-Node-Id` response header directly:
+**Or talk to it directly with an HTTP client** (e.g. [httpie](https://httpie.io/)):
 ```bash
-http -v --follow PUT "http://localhost:9000/" key=foo value=bar
+http PUT "http://localhost:9000/" key=foo value=bar
 ```
-
-**Talk to a node directly** (bypassing the coordinator, useful for debugging):
-```bash
-http PUT "http://localhost:4000/" key=foo value=bar
-```
+Note: the coordinator's `307` redirects preserve method and body per spec, but many HTTP clients (including plain `HttpClient` defaults across several languages) don't reliably resend the body when auto-following a `307`/`308`. The bundled CLI handles this correctly by following redirects manually; if you're testing with `curl`/`httpie` directly, use `--follow`/`-F` and verify the body actually lands.
 
 ## API
 
-All endpoints accept/return JSON. `key` is always required.
+All endpoints accept/return JSON, except `GET`, which takes `key` as a query parameter (`?key=foo`) rather than a body — GET request bodies are unreliably supported across HTTP clients and intermediaries, so this project avoids relying on them.
 
-| Method | Body | Response |
+| Method | Input | Response |
 |---|---|---|
-| `PUT` | `{"key": "...", "value": "..."}` | `{"success": true, "key": "..."}` |
-| `GET` | `{"key": "..."}` | `{"found": bool, "key": "...", "value": "..." \| null}` |
-| `DELETE` | `{"key": "..."}` | `{"deleted": true, "key": "..."}` |
+| `PUT /` | body: `{"key": "...", "value": "..."}` | `{"success": true, "key": "..."}` |
+| `GET /?key=...` | query param | `{"found": bool, "key": "...", "value": "..." \| null}` |
+| `DELETE /` | body: `{"key": "..."}` | `{"deleted": true, "key": "..."}` |
+| `GET /nodes` | — | `{"nodes": [{"id": "...", "url": "...", "healthy": bool}, ...]}` |
 
-Errors return `4xx`/`5xx` with a plain-text message body.
-
-## Tech stack
-
-- **Java 25** — compact source files / instance `main` methods (JEP 512), virtual threads for the HTTP executor
-- **[JBang](https://www.jbang.dev/)** — dependency management and script execution, no Maven/Gradle
-- **[Gson](https://github.com/google/gson)** — JSON (de)serialization
-- **[SLF4J](https://www.slf4j.org/)** — logging
-- **`com.sun.net.httpserver`** — the JDK-bundled HTTP server (no external web framework)
-
-## Status / roadmap
-
-See [`TODOS.md`](./TODOS.md) for the current in-progress and planned work.
+Every node response includes an `X-Node-Id` header identifying which node handled it. Errors return `4xx`/`5xx` with a plain-text or JSON message body.
