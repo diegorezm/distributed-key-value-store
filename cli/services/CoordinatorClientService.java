@@ -6,6 +6,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpClient.Redirect;
 import java.time.Duration;
 import shared.dto.*;
 
@@ -18,6 +19,7 @@ public class CoordinatorClientService {
     public CoordinatorClientService(String host, int port, int timeoutMs) {
         this.baseUrl = "http://%s:%d".formatted(host, port);
         this.httpClient = HttpClient.newBuilder()
+                .followRedirects(Redirect.NORMAL)
                 .connectTimeout(Duration.ofMillis(timeoutMs))
                 .build();
     }
@@ -74,6 +76,7 @@ public class CoordinatorClientService {
         }
 
         HttpRequest request = builder.build();
-        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        var response =  httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        return response;
     }
 }
