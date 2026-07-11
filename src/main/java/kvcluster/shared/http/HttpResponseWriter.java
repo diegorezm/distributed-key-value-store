@@ -1,13 +1,12 @@
 package src.main.java.kvcluster.shared.http;
 
-import com.google.gson.Gson;
-import com.sun.net.httpserver.HttpExchange;
-
-import src.main.java.kvcluster.shared.dto.GenericResponseDTO;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import src.main.java.kvcluster.shared.models.GenericResponse;
+
+import com.google.gson.Gson;
+import com.sun.net.httpserver.HttpExchange;
 
 public final class HttpResponseWriter {
 
@@ -32,6 +31,6 @@ public final class HttpResponseWriter {
 
     public static void send(HttpExchange exchange, int status, String message)
         throws IOException {
-        send(exchange, status, new GenericResponseDTO(message));
+        send(exchange, status, new GenericResponse(message));
     }
 }

@@ -18,12 +18,12 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import src.main.java.kvcluster.node.services.KVStoreService;
-import src.main.java.kvcluster.shared.dto.DelRequestDTO;
-import src.main.java.kvcluster.shared.dto.DeleteResponseDTO;
-import src.main.java.kvcluster.shared.dto.GetRequestDTO;
-import src.main.java.kvcluster.shared.dto.GetResponseDTO;
-import src.main.java.kvcluster.shared.dto.PutRequestDTO;
-import src.main.java.kvcluster.shared.dto.PutResponseDTO;
+import src.main.java.kvcluster.shared.models.DelRequest;
+import src.main.java.kvcluster.shared.models.DeleteResponse;
+import src.main.java.kvcluster.shared.models.GetRequest;
+import src.main.java.kvcluster.shared.models.GetResponse;
+import src.main.java.kvcluster.shared.models.PutRequest;
+import src.main.java.kvcluster.shared.models.PutResponse;
 import src.main.java.kvcluster.shared.http.HttpResponseWriter;
 
 public class NodeRequestHandler implements HttpHandler {
@@ -99,7 +99,7 @@ public class NodeRequestHandler implements HttpHandler {
 
     private void handlePut(HttpExchange exchange, String body, boolean isReplicationWrite)
         throws IOException {
-        PutRequestDTO putReq = GSON.fromJson(body, PutRequestDTO.class);
+        PutRequest putReq = GSON.fromJson(body, PutRequest.class);
         if (putReq == null || putReq.key() == null || putReq.value() == null) {
             logger.warn("[{}:{}] PUT missing key or value", serverId, port);
             HttpResponseWriter.send(exchange, 400, "Missing key or value");
@@ -122,13 +122,13 @@ public class NodeRequestHandler implements HttpHandler {
         HttpResponseWriter.send(
             exchange,
             201,
-            new PutResponseDTO(true, putReq.key())
+            new PutResponse(true, putReq.key())
         );
     }
 
     private void handleGet(HttpExchange exchange, String body)
         throws IOException {
-        GetRequestDTO getReq = GSON.fromJson(body, GetRequestDTO.class);
+        GetRequest getReq = GSON.fromJson(body, GetRequest.class);
         if (getReq == null || getReq.key() == null) {
             logger.warn("[{}:{}] GET missing key", serverId, port);
             HttpResponseWriter.send(exchange, 400, "Missing key");
@@ -147,13 +147,13 @@ public class NodeRequestHandler implements HttpHandler {
         HttpResponseWriter.send(
             exchange,
             200,
-            new GetResponseDTO(found, getReq.key(), value)
+            new GetResponse(found, getReq.key(), value)
         );
     }
 
     private void handleDelete(HttpExchange exchange, String body, boolean isReplicationWrite)
         throws IOException {
-        DelRequestDTO delReq = GSON.fromJson(body, DelRequestDTO.class);
+        DelRequest delReq = GSON.fromJson(body, DelRequest.class);
         if (delReq == null || delReq.key() == null) {
             logger.warn("[{}:{}] DELETE missing key", serverId, port);
             HttpResponseWriter.send(exchange, 400, "Missing key");
@@ -170,7 +170,7 @@ public class NodeRequestHandler implements HttpHandler {
         HttpResponseWriter.send(
             exchange,
             200,
-            new DeleteResponseDTO(true, delReq.key())
+            new DeleteResponse(true, delReq.key())
         );
     }
 

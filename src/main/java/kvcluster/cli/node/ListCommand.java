@@ -5,8 +5,8 @@ import picocli.CommandLine.Help.Ansi;
 import picocli.CommandLine.ParentCommand;
 import src.main.java.kvcluster.cli.ClientErrors;
 import src.main.java.kvcluster.cli.services.CoordinatorClientService;
-import src.main.java.kvcluster.shared.dto.ListNodeResponseDTO;
-import src.main.java.kvcluster.shared.dto.NodeStatusDTO;
+import src.main.java.kvcluster.shared.models.ListNodeResponse;
+import src.main.java.kvcluster.shared.models.NodeStatus;
 
 @Command(
     name = "list",
@@ -22,9 +22,9 @@ public class ListCommand implements Runnable {
     public void run() {
         CoordinatorClientService client = parent.root.client();
 
-        ListNodeResponseDTO result = ClientErrors.handle(client::listNodes);
+        ListNodeResponse result = ClientErrors.handle(client::listNodes);
 
-        for (NodeStatusDTO node : result.nodes()) {
+        for (NodeStatus node : result.nodes()) {
             String status = node.healthy()
                 ? Ansi.AUTO.string("@|green UP  |@")
                 : Ansi.AUTO.string("@|red DOWN|@");

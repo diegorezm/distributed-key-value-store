@@ -6,7 +6,7 @@ import picocli.CommandLine.Parameters;
 import picocli.CommandLine.ParentCommand;
 import src.main.java.kvcluster.cli.ClientErrors;
 import src.main.java.kvcluster.cli.services.CoordinatorClientService;
-import src.main.java.kvcluster.shared.dto.NodeStatusDTO;
+import src.main.java.kvcluster.shared.models.NodeStatus;
 
 @Command(
     name = "get",
@@ -25,7 +25,7 @@ public class GetCommand implements Runnable {
     public void run() {
         CoordinatorClientService client = parent.root.client();
 
-        NodeStatusDTO node = ClientErrors.handle(() -> client.getNode(nodeId));
+        NodeStatus node = ClientErrors.handle(() -> client.getNode(nodeId));
 
         if (node == null) {
             System.out.println(

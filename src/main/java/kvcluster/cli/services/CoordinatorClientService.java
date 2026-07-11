@@ -2,14 +2,14 @@ package src.main.java.kvcluster.cli.services;
 
 import com.google.gson.Gson;
 
-import src.main.java.kvcluster.shared.dto.DelRequestDTO;
-import src.main.java.kvcluster.shared.dto.DeleteResponseDTO;
-import src.main.java.kvcluster.shared.dto.GetRequestDTO;
-import src.main.java.kvcluster.shared.dto.GetResponseDTO;
-import src.main.java.kvcluster.shared.dto.ListNodeResponseDTO;
-import src.main.java.kvcluster.shared.dto.NodeStatusDTO;
-import src.main.java.kvcluster.shared.dto.PutRequestDTO;
-import src.main.java.kvcluster.shared.dto.PutResponseDTO;
+import src.main.java.kvcluster.shared.models.DelRequest;
+import src.main.java.kvcluster.shared.models.DeleteResponse;
+import src.main.java.kvcluster.shared.models.GetRequest;
+import src.main.java.kvcluster.shared.models.GetResponse;
+import src.main.java.kvcluster.shared.models.ListNodeResponse;
+import src.main.java.kvcluster.shared.models.NodeStatus;
+import src.main.java.kvcluster.shared.models.PutRequest;
+import src.main.java.kvcluster.shared.models.PutResponse;
 
 import java.io.IOException;
 import java.net.URI;
@@ -37,30 +37,30 @@ public class CoordinatorClientService {
         return baseUrl;
     }
 
-    public PutResponseDTO put(String key, String value) throws IOException, InterruptedException {
-        String body = GSON.toJson(new PutRequestDTO(key, value));
+    public PutResponse put(String key, String value) throws IOException, InterruptedException {
+        String body = GSON.toJson(new PutRequest(key, value));
         HttpResponse<String> response = send("PUT", "/", body);
-        return GSON.fromJson(response.body(), PutResponseDTO.class);
+        return GSON.fromJson(response.body(), PutResponse.class);
     }
 
-    public GetResponseDTO get(String key) throws IOException, InterruptedException {
-        String body = GSON.toJson(new GetRequestDTO(key));
+    public GetResponse get(String key) throws IOException, InterruptedException {
+        String body = GSON.toJson(new GetRequest(key));
         HttpResponse<String> response = send("GET", "/", body);
-        return GSON.fromJson(response.body(), GetResponseDTO.class);
+        return GSON.fromJson(response.body(), GetResponse.class);
     }
 
-    public DeleteResponseDTO delete(String key) throws IOException, InterruptedException {
-        String body = GSON.toJson(new DelRequestDTO(key));
+    public DeleteResponse delete(String key) throws IOException, InterruptedException {
+        String body = GSON.toJson(new DelRequest(key));
         HttpResponse<String> response = send("DELETE", "/", body);
-        return GSON.fromJson(response.body(), DeleteResponseDTO.class);
+        return GSON.fromJson(response.body(), DeleteResponse.class);
     }
 
-    public ListNodeResponseDTO listNodes() throws IOException, InterruptedException {
+    public ListNodeResponse listNodes() throws IOException, InterruptedException {
         HttpResponse<String> response = send("GET", "/nodes", null); // no body needed
-        return GSON.fromJson(response.body(), ListNodeResponseDTO.class);
+        return GSON.fromJson(response.body(), ListNodeResponse.class);
     }
 
-    public NodeStatusDTO getNode(String id) throws IOException, InterruptedException {
+    public NodeStatus getNode(String id) throws IOException, InterruptedException {
         return listNodes().nodes().stream()
                 .filter(n -> n.id().equals(id))
                 .findFirst()

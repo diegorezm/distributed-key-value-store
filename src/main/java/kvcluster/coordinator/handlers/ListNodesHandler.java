@@ -8,8 +8,8 @@ import com.sun.net.httpserver.HttpHandler;
 
 import src.main.java.kvcluster.coordinator.NodeHealthMonitor;
 import src.main.java.kvcluster.coordinator.NodeInfo;
-import src.main.java.kvcluster.shared.dto.ListNodeResponseDTO;
-import src.main.java.kvcluster.shared.dto.NodeStatusDTO;
+import src.main.java.kvcluster.shared.models.ListNodeResponse;
+import src.main.java.kvcluster.shared.models.NodeStatus;
 import src.main.java.kvcluster.shared.http.HttpResponseWriter;
 
 public class ListNodesHandler implements HttpHandler {
@@ -23,13 +23,13 @@ public class ListNodesHandler implements HttpHandler {
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
-        List<NodeStatusDTO> statuses = nodes.stream()
-               .map(n -> new NodeStatusDTO(
+        List<NodeStatus> statuses = nodes.stream()
+               .map(n -> new NodeStatus(
                    n.id(),
                    "http://localhost:" + n.port(),
                    healthMonitor.isHealthy(n.id())
                ))
                .toList();
-        HttpResponseWriter.send(exchange, 200, new ListNodeResponseDTO(statuses));
+        HttpResponseWriter.send(exchange, 200, new ListNodeResponse(statuses));
     }
 }
