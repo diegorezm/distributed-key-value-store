@@ -1,9 +1,11 @@
 package cli.node;
 
+import cli.KvctlCommand;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Spec;
 import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.ParentCommand;
 
 @Command(
     name = "node",
@@ -17,6 +19,9 @@ import picocli.CommandLine.Model.CommandSpec;
 public class NodeCommand implements Runnable {
     @Spec
     CommandSpec spec;
+
+    @ParentCommand
+    KvctlCommand root;
 
     @Override
     public void run() {

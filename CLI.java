@@ -2,6 +2,7 @@
 //DEPS com.google.code.gson:gson:2.11.0
 //DEPS info.picocli:picocli:4.7.7
 //SOURCES cli
+//SOURCES shared
 
 import cli.KvctlCommand;
 import picocli.CommandLine;
