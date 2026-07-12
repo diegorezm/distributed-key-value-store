@@ -29,5 +29,12 @@ run-coordinator nodes="3" replication="1": build-node
 cli *args: build-cli
     {{cli_bin}} {{args}}
 
+test: build-node
+    jbang src/test/java/kvcluster/TestMain.java
+
+test-class class:
+    jbang src/test/java/kvcluster/TestMain.java --select-class {{class}}
+
+
 clean:
     rm -rf build data
