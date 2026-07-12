@@ -7,11 +7,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import src.main.java.kvcluster.coordinator.domain.HealthChecker;
 import src.main.java.kvcluster.coordinator.domain.NodeRouter;
 import src.main.java.kvcluster.coordinator.domain.model.NodeInfo;
@@ -28,23 +27,26 @@ import src.main.java.kvcluster.coordinator.transport.RouteRedirectHandler;
  */
 public class CoordinatorServer {
 
-    private static final Logger logger = LoggerFactory.getLogger(CoordinatorServer.class);
+    private static final Logger logger = LoggerFactory.getLogger(
+        CoordinatorServer.class
+    );
 
     private final NodeProcessManager processManager;
     private final NodeRouter router;
     private final HealthChecker healthChecker;
     private final NodeHealthMonitor healthMonitor;
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
+    private AtomicBoolean isShutdown = new AtomicBoolean(false);
 
     public CoordinatorServer(Path nodeJarPath) {
         this.processManager = new NodeProcessManager(nodeJarPath);
         this.router = new ConsistentNodeHashService();
         this.healthChecker = new NodeHealthProbe(processManager);
         this.healthMonitor = new NodeHealthMonitor(
-            processManager,   // NodeRegistry
-            healthChecker,    // HealthChecker
-            router,           // NodeRouter
-            processManager    // NodeLifecycle
+            processManager, // NodeRegistry
+            healthChecker, // HealthChecker
+            router, // NodeRouter
+            processManager // NodeLifecycle
         );
     }
 
@@ -65,7 +67,8 @@ public class CoordinatorServer {
 
         for (NodeInfo self : allNodes) {
             List<String> replicaIds = replicasFor(self.id(), replicationFactor);
-            String peerArg = replicaIds.stream()
+            String peerArg = replicaIds
+                .stream()
                 .map(id -> id + "=http://localhost:" + portFor(allNodes, id))
                 .collect(Collectors.joining(","));
             processManager.spawnNode(self.id(), self.port(), peerArg);
@@ -74,16 +77,24 @@ public class CoordinatorServer {
         healthMonitor.start(2, 5);
         startHttpServer(coordinatorPort, replicationFactor, allNodes);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            healthMonitor.stop();
-            processManager.shutdownAll();
-        }));
+        Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
 
         logger.info(
             "Coordinator running with {} node(s), replication factor {}, on port {}",
-            count, replicationFactor, coordinatorPort
+            count,
+            replicationFactor,
+            coordinatorPort
         );
         shutdownLatch.await();
+    }
+
+    public void shutdown() {
+        if (!isShutdown.compareAndSet(false, true)) {
+            return; // already shut down, ignore duplicate calls
+        }
+        healthMonitor.stop();
+        processManager.shutdownAll();
+        shutdownLatch.countDown();
     }
 
     private void startHttpServer(
@@ -92,13 +103,19 @@ public class CoordinatorServer {
         List<NodeInfo> allNodes
     ) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
-        server.createContext("/", new RouteRedirectHandler(
-            router,
-            processManager,
-            healthMonitor,
-            replicationFactor
-        ));
-        server.createContext("/nodes", new ListNodesHandler(allNodes, healthMonitor));
+        server.createContext(
+            "/",
+            new RouteRedirectHandler(
+                router,
+                processManager,
+                healthMonitor,
+                replicationFactor
+            )
+        );
+        server.createContext(
+            "/nodes",
+            new ListNodesHandler(allNodes, healthMonitor)
+        );
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
         logger.info("Coordinator HTTP server listening on port {}", port);
@@ -106,17 +123,21 @@ public class CoordinatorServer {
 
     private List<String> replicasFor(String nodeId, int replicationFactor) {
         List<String> ring = router.routeFor(nodeId, replicationFactor + 1);
-        return ring.stream()
+        return ring
+            .stream()
             .filter(id -> !id.equals(nodeId))
             .limit(replicationFactor)
             .toList();
     }
 
     private int portFor(List<NodeInfo> allNodes, String id) {
-        return allNodes.stream()
+        return allNodes
+            .stream()
             .filter(n -> n.id().equals(id))
             .findFirst()
             .map(NodeInfo::port)
-            .orElseThrow(() -> new IllegalStateException("Unknown node id: " + id));
+            .orElseThrow(() ->
+                new IllegalStateException("Unknown node id: " + id)
+            );
     }
 }
