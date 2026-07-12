@@ -62,6 +62,29 @@ public class TestCluster {
         return coordinatorPort;
     }
 
+    public void awaitNodeHealthyAgain(String nodeId)
+        throws IOException, InterruptedException {
+        long deadline = System.currentTimeMillis() + 15_000;
+        while (System.currentTimeMillis() < deadline) {
+            var result = listNodes();
+            boolean isHealthy = result
+                .nodes()
+                .stream()
+                .filter(n -> n.id().equals(nodeId))
+                .findFirst()
+                .map(NodeStatus::healthy)
+                .orElse(false);
+
+            if (isHealthy) {
+                return;
+            }
+            Thread.sleep(300);
+        }
+        throw new IllegalStateException(
+            "Node " + nodeId + " did not become healthy again within timeout"
+        );
+    }
+
     public HttpResponse<String> request(String method, String jsonBody)
         throws IOException, InterruptedException {
         var initial = client.send(
@@ -187,5 +210,9 @@ public class TestCluster {
         throw new IllegalStateException(
             "Node " + nodeId + " was not marked down within timeout"
         );
+    }
+
+    public int portForNodeId(String nodeId) {
+        return coordinator.getNodesHandle().get(nodeId).port();
     }
 }
