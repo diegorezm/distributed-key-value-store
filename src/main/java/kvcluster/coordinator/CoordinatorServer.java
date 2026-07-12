@@ -5,6 +5,7 @@ import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -13,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import src.main.java.kvcluster.coordinator.domain.HealthChecker;
 import src.main.java.kvcluster.coordinator.domain.NodeRouter;
+import src.main.java.kvcluster.coordinator.domain.model.NodeHandle;
 import src.main.java.kvcluster.coordinator.domain.model.NodeInfo;
 import src.main.java.kvcluster.coordinator.infra.ConsistentNodeHashService;
 import src.main.java.kvcluster.coordinator.infra.NodeHealthProbe;
@@ -95,6 +97,10 @@ public class CoordinatorServer {
         healthMonitor.stop();
         processManager.shutdownAll();
         shutdownLatch.countDown();
+    }
+
+    public Map<String, NodeHandle> getNodesHandle() {
+        return this.processManager.listNodes();
     }
 
     private void startHttpServer(
