@@ -37,7 +37,7 @@ class ReplicationIntegrationTest {
         var putResponse = cluster.request("PUT", GSON.toJson(new PutRequest("failover-key", "failover-value")));
         String primaryId = putResponse.headers().firstValue("X-Node-Id").orElseThrow();
 
-        cluster.killNodeProcess(primaryId); // just the id now, no URL parsing
+        cluster.killNodeProcess(primaryId);
         cluster.awaitNodeMarkedDown(primaryId);
 
         var getResponse = cluster.request("GET", GSON.toJson(new GetRequest("failover-key")));

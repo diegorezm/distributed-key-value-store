@@ -8,6 +8,7 @@ A distributed, Redis-inspired key-value store built from scratch in Java 25.
 - **[JBang](https://www.jbang.dev/)** — dependency management and script execution, no build tool
 - **[Gson](https://github.com/google/gson)** — JSON (de)serialization
 - **[SLF4J](https://www.slf4j.org/)** — logging
+- **[JUnit](https://junit.org/)** — tests
 - **[picocli](https://picocli.info/)** — CLI argument parsing and colored terminal output
 - **`com.sun.net.httpserver`** — the JDK-bundled HTTP server (no external web framework)
 
