@@ -122,7 +122,3 @@ Every node response includes an `X-Node-Id` header identifying which node handle
 - **[JUnit 5](https://junit.org/junit5/)** — unit + integration tests, run via the JUnit Platform Launcher
 - **[picocli](https://picocli.info/)** — CLI argument parsing and colored terminal output
 - **`com.sun.net.httpserver`** — the JDK-bundled HTTP server (no external web framework)
-
-## Status / roadmap
-
-See [`TODOS.md`](./TODOS.md) for current and planned work — benchmarking is the main thing left. **Data migration on membership change** (rebalancing keys when nodes join, leave, or get evicted) is explicitly out of scope for this project; nodes that are evicted permanently shrink the effective cluster rather than having their keyspace redistributed.
